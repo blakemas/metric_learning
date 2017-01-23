@@ -1,5 +1,5 @@
 from __future__ import division, print_function
-import numpy as np
+import autograd.numpy as np
 import matplotlib.pyplot as plt
 
 
