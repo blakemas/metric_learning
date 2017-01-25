@@ -1,8 +1,8 @@
 from __future__ import division, print_function
 from time import time
+import numpy as np
 
-import autograd.numpy as np
-from autograd.core import primitive
+import tensorflow as tf 
 from pymanopt.manifolds import PSDFixedRank, PositiveDefinite
 from pymanopt import Problem
 from pymanopt.solvers import SteepestDescent, ConjugateGradient
@@ -16,27 +16,26 @@ from utilsMetric import *
 global X, S, lam1, lam12
 # number of points, number of total features, number of relevant features
 n, p, d = 50, 10, 5
+
 # regularization parameter for L_1 cost
-lam1 = 0.05
+lam1 = tf.constant(0.05)
 # regularization parameter for L_{1,2} cost
-lam12 = 0.05
+lam12 = tf.constant(0.05)
 # n p-dimensional feature vectors
-X = features(n, p)
+X = tf.constant(features(n, p))
 # The true Kernel, a p by p symmetric PSD kernel with d^2 non-zero entries
 Ktrue = kernel(p, d)
 print('Ktrue shape', np.shape(Ktrue))
-pulls = 5000                                    # number of triplets gathered
-S = triplets(Ktrue, X, pulls, noise=True)       # get some triplets
+pulls = tf.constant(5000)                                    # number of triplets gathered
+S = tf.constant(triplets(Ktrue, X, pulls, noise=True))       # get some triplets
 
 # Instantiate a manifold
 manifold = PositiveDefinite(p)
 # Define the cost function for the L_1 and L_{1,2} problems (here using
 # autograd.numpy)
 
-@primitive
 def norm1(x):
     return np.sum(np.abs(x))
-
 
 def make_grad_norm1(ans, x):
     def gradient_product(g):
@@ -45,6 +44,15 @@ def make_grad_norm1(ans, x):
     return gradient_product
 norm1.defgrad(make_grad_norm1)
 
+
+####################### define while loop conditions for tensorflow
+def loss_body(K, X, q):
+
+
+
+######### define L1 cost
+lossL1 = tf.Variable(0.)
+K = 
 
 def costL1(K):
     loss = 0.
