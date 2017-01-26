@@ -22,72 +22,34 @@ lam1 = tf.constant(0.05)
 # regularization parameter for L_{1,2} cost
 lam12 = tf.constant(0.05)
 # n p-dimensional feature vectors
-X = tf.constant(features(n, p))
+X = features(n, p)
 # The true Kernel, a p by p symmetric PSD kernel with d^2 non-zero entries
 Ktrue = kernel(p, d)
 print('Ktrue shape', np.shape(Ktrue))
-pulls = tf.constant(5000)                                    # number of triplets gathered
-S = tf.constant(triplets(Ktrue, X, pulls, noise=True))       # get some triplets
+pulls = 5000                                    # number of triplets gathered
+S = triplets(Ktrue, X, pulls, noise=True)         # get some triplets
+pulls = tf.constant(pulls, dtype=tf.float32)
+Ms = [tf.constant(M.T.astype('float32')) for M in M_set(S, X)]        # all different Mts stored at tf constants
+
 
 # Instantiate a manifold
 manifold = PositiveDefinite(p)
-# Define the cost function for the L_1 and L_{1,2} problems (here using
-# autograd.numpy)
 
-def norm1(x):
-    return np.sum(np.abs(x))
+##### L1 loss
+K = tf.Variable(tf.placeholder(tf.float32, [p, p]))
+Ker = tf.matmul(K, tf.transpose(K))
+costL1 = tf.add_n([tf.log1p(tf.exp(-1.*tf.trace(tf.matmul(Ker, M)))) \
+                                                        for M in Ms])/pulls \
+                                                        + lam1 * tf.reduce_sum(tf.abs(Ker))
 
-def make_grad_norm1(ans, x):
-    def gradient_product(g):
-        s = np.sign(x)
-        return np.full(x.shape, g)*s
-    return gradient_product
-norm1.defgrad(make_grad_norm1)
-
-
-####################### define while loop conditions for tensorflow
-def loss_body(K, X, q):
-
-
-
-######### define L1 cost
-lossL1 = tf.Variable(0.)
-K = 
-
-def costL1(K):
-    loss = 0.
-    Ker = np.dot(K, K.T)
-    for q in S:
-        i, j, k = q
-        Mt = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k])
-              - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
-        loss = loss + np.log(1. + np.exp(-np.trace(np.dot(Mt, Ker))))
-    # add L1 penalty
-    loss = loss / len(S) + lam1 * norm1(Ker.flatten())
-    return loss
-
-
-def costL12(K):
-    # compute log loss
-    loss = 0.
-    for q in S:
-        i, j, k = q
-        Mt = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k])
-              - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
-        loss = loss + np.log(1 + np.exp(-1. * np.trace(np.dot(Mt, K))))
-    loss = loss
-
-    # compute 1,2 norm of K
-    norm12 = 0.
-    for i in range(K.shape[0]):
-        norm12 += np.linalg.norm(K[i])
-
-    loss = loss / len(S) + lam12 * norm12
-    return loss
+##### L12 loss
+costL12 = tf.add_n([tf.log1p(tf.exp(-1.*tf.trace(tf.matmul(Ker, M)))) \
+                                                        for M in Ms])/pulls \
+                                                        + lam12 * tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.square(Ker), 0)))
 
 # create the problems, defined over the manifold
-problem_L1 = Problem(manifold=manifold, cost=costL1)
-problem_L12 = Problem(manifold=manifold, cost=costL12)
+problem_L1 = Problem(manifold=manifold, cost=costL1, arg=K)
+problem_L12 = Problem(manifold=manifold, cost=costL12, arg=K)
 # Instantiate a pymanopt solver
 solver = ConjugateGradient(maxiter=100)
 

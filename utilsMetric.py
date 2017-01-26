@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import numpy as np
+import tensorflow as tf
 import matplotlib.pyplot as plt
 
 
@@ -23,6 +24,17 @@ def triplets(K, X, pulls, steepness=1, noise=False):
                 q = [q[i] for i in [0, 2, 1]]
         S.append(q)
     return S
+
+def M_set(S, X):
+    n, p = X.shape
+    num_t = len(S)
+    M = []
+    for q in S:
+        i, j, k =  q
+        M_t = 2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k]) \
+              - np.outer(X[j], X[j]) + np.outer(X[k], X[k])
+        M.append(M_t)
+    return M
 
 
 def randomQuery(n):
@@ -359,18 +371,21 @@ if __name__ == "__main__":
 
     # Ktrue = np.eye(p)
     S = triplets(Ktrue, X, pulls, noise=True)
-    Khat, emp_losses, log_losses = computeKernel(
-        X, S, d, lam, maxits=100, verbose=True)
-    Khat_am = alternatingMin(X, S, r, d, verbose=True)
-    print(np.linalg.norm(Khat, ord='fro'))
-    print('recovery error', np.linalg.norm(Khat-Ktrue, 'fro')**2/np.linalg.norm(Ktrue, 'fro')**2)
+    M = M_set(S, X)
+    print(len(M), M[1].shape)
+
+    # Khat, emp_losses, log_losses = computeKernel(
+    #     X, S, d, lam, maxits=100, verbose=True)
+    # Khat_am = alternatingMin(X, S, r, d, verbose=True)
+    # print(np.linalg.norm(Khat, ord='fro'))
+    # print('recovery error', np.linalg.norm(Khat-Ktrue, 'fro')**2/np.linalg.norm(Ktrue, 'fro')**2)
     
-    # plot comparison
-    f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
-    ax1.imshow(Ktrue, interpolation='nearest')
-    ax1.set_title("True Kernel")
-    ax2.imshow(Khat, interpolation='nearest')
-    ax2.set_title("Estimated Kernel - Composed Proximal gradients")
-    ax3.imshow(Khat_am, interpolation='nearest')
-    ax3.set_title("Estimated Kernel - Alternating Minimization")
-    plt.show()
+    # # plot comparison
+    # f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
+    # ax1.imshow(Ktrue, interpolation='nearest')
+    # ax1.set_title("True Kernel")
+    # ax2.imshow(Khat, interpolation='nearest')
+    # ax2.set_title("Estimated Kernel - Composed Proximal gradients")
+    # ax3.imshow(Khat_am, interpolation='nearest')
+    # ax3.set_title("Estimated Kernel - Alternating Minimization")
+    # plt.show()
