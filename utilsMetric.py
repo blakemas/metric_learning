@@ -370,22 +370,22 @@ if __name__ == "__main__":
     r = np.linalg.norm(Ktrue[:], ord=1) * 1.05		# true radius of the L1 ball * multiplicative term for slack
 
     # Ktrue = np.eye(p)
-    S = triplets(Ktrue, X, pulls, noise=True)
+    S = triplets(Ktrue, X, pulls, noise=False)
     M = M_set(S, X)
     print(len(M), M[1].shape)
 
-    # Khat, emp_losses, log_losses = computeKernel(
-    #     X, S, d, lam, maxits=100, verbose=True)
-    # Khat_am = alternatingMin(X, S, r, d, verbose=True)
-    # print(np.linalg.norm(Khat, ord='fro'))
-    # print('recovery error', np.linalg.norm(Khat-Ktrue, 'fro')**2/np.linalg.norm(Ktrue, 'fro')**2)
+    Khat, emp_losses, log_losses = computeKernel(
+        X, S, d, lam, maxits=100, verbose=True)
+    Khat_am = alternatingMin(X, S, r, d, verbose=True)
+    print(np.linalg.norm(Khat, ord='fro'))
+    print('recovery error', np.linalg.norm(Khat-Ktrue, 'fro')**2/np.linalg.norm(Ktrue, 'fro')**2)
     
-    # # plot comparison
-    # f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
-    # ax1.imshow(Ktrue, interpolation='nearest')
-    # ax1.set_title("True Kernel")
-    # ax2.imshow(Khat, interpolation='nearest')
-    # ax2.set_title("Estimated Kernel - Composed Proximal gradients")
-    # ax3.imshow(Khat_am, interpolation='nearest')
-    # ax3.set_title("Estimated Kernel - Alternating Minimization")
-    # plt.show()
+    # plot comparison
+    f, (ax1, ax2, ax3) = plt.subplots(1, 3, sharey=True)
+    ax1.imshow(Ktrue, interpolation='nearest')
+    ax1.set_title("True Kernel")
+    ax2.imshow(Khat, interpolation='nearest')
+    ax2.set_title("Estimated Kernel - Composed Proximal gradients")
+    ax3.imshow(Khat_am, interpolation='nearest')
+    ax3.set_title("Estimated Kernel - Alternating Minimization")
+    plt.show()
