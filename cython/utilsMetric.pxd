@@ -124,7 +124,7 @@ cdef inline np.ndarray[DTYPE_t, ndim=1]softThreshold(np.ndarray[DTYPE_t, ndim=1]
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline np.ndarray[DTYPE_t, ndim=2] projected(np.ndarray[DTYPE_t, ndim=2] K, int d):
+cdef inline np.ndarray[DTYPE_t, ndim=2] projectPSDRankD(np.ndarray[DTYPE_t, ndim=2] K, int d):
     '''
     Project onto rank d psd matrices
     '''
@@ -145,7 +145,13 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] projected(np.ndarray[DTYPE_t, ndim=2] K,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline np.ndarray[DTYPE_t, ndim=2] prox_L12(np.ndarray[DTYPE_t, ndim=2] K, double lam, int d):
-    return projected(groupLasso(K, lam), d)
+    return projectPSDRankD(groupLasso(K, lam), d)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=2] prox_L1(np.ndarray[DTYPE_t, ndim=2] K, double lam, int d):
+    K = np.sign(K) * np.maximum(np.abs(K) - lam, 0)         # soft threshold (note: function only takes vectors)
+    return projectPSDRankD(K, d)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)

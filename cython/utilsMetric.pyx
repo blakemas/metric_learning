@@ -92,7 +92,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] kernel(int p, int d):
     for r, i in enumerate(inds):
         for c, j in enumerate(inds):
             K[i, j] = subK[r, c]
-    return projected(K, d)
+    return projectPSDRankD(K, d)
 
 def getGrad(K, M):
     return fullGradient(K, M)
@@ -136,7 +136,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     list[float]          log_loss: logistic loss at each iteration
     """
     # select proximal operator
-    if not (regularization == "L12" or regularization == "nucNorm"): 
+    if not (regularization == "L12" or regularization == "nucNorm" or regularization == "L1"): 
         raise AssertionError("Please choose 'L12 or 'nucNorm' for parameter 'regularization' ")
 
     cdef int n, p, t, inner_t
@@ -165,8 +165,10 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         G = fullGradient(K_old, M)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
         if regularization == "L12":
-            K = prox_L12(K_old - alpha * G, lam, d)                                    # take a step
-        else:
+            K = prox_L12(K_old - alpha * G, lam, d)                                    
+        elif regularization == "L1":
+            K = prox_L1(K_old - alpha * G, lam, d)
+        elif regularization == "nucNorm":
             K = prox_nucNorm(K_old - alpha * G, lam, d)
 
         # stopping criteria
@@ -183,7 +185,9 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             alpha = alpha * rho
             if regularization == "L12":
                 K = prox_L12(K_old - alpha * G, lam, d)
-            else:
+            elif regularization == "L1":
+                K = prox_L1(K_old - alpha * G, lam, d)
+            elif regularization == "nucNorm":
                 K = prox_nucNorm(K_old - alpha * G, lam, d)
             emp_loss_k, log_loss_k = lossK(K, M)
             inner_t += 1
