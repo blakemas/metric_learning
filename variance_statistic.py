@@ -40,7 +40,7 @@ def run(ps, n=100, pulls=1000, dim=2):
 if __name__ == "__main__":	
     ps = np.arange(10,100,10)       # different number of features to try
     pulls = 1000
-    n = 100         # number of points
+    n = 500         # number of points
     dim = 2         # what dimension the points approximately lie in
     var_high, var_low = run(ps, pulls=pulls, n=n)
 
@@ -48,8 +48,8 @@ if __name__ == "__main__":
     plt.plot(ps, var_low, label="Low dimensional")
     plt.legend()
     plt.xlabel('Number of features')
-    plt.ylabel('Variance statistic')
-    plt.title('Variance statistics for high and low dimensional feature sets')
+    plt.ylabel('Concetration')
+    plt.title('Matrix concetration for high and low dimensional feature sets')
     plt.show()
 
 
