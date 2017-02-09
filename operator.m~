@@ -1,0 +1,35 @@
+% triplet operators
+n = 100;        % number of points
+T=10000;        % number of triplets
+p = 5;          % dimension of x_i's
+
+X=[];
+z = randn(p,1); z = z/norm(z);
+for i=1:n
+    z = randn(p,1)/sqrt(p); % these are norm 1 in expectation
+    X = [X z];
+end
+svd(X)
+
+G = X'*X;           % the Gram matrix
+
+% Empirically compute Lt G Lt
+LGL = zeros(p,p);
+for t=1:T
+    I = randsample(n,3);
+    Lt = zeros(n,n);
+    Lt(I,I) = [0 -1 1;-1 1 0;1 0 -1];
+    LGL = LGL + Lt*G*Lt;
+end
+
+
+% verify expression for Lt G Lt
+LGL_alt = zeros(n,n);
+for t=1:T
+    I = randsample(n,3);
+    i = I(1);
+    j = I(2);
+    k = I(3);
+    LGL_alt = [(G(j,j)-2*G(j,k)+G(k,k)), (G(i,j)-G(i,k)-G(j,j)-G(j,k)), (-G(i,j)+G(i,k)+G(j,k)-G(k,k)); ...
+                (G(i,j)-G(i,k)-G(j,j)+G(j,k)), (G(i,i)-2*G(i,j)+G(k,k)), (-G(i,i)
+end

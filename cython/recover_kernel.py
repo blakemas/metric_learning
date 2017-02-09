@@ -49,4 +49,3 @@ ax3.set_title("Estimated Kernel - Nuclear Norm regularization")
 ax4.imshow(Khat_L1, interpolation='nearest')
 ax4.set_title("Estimated Kernel - L1 regularization")
 plt.show()
-
