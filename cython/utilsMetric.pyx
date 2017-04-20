@@ -28,7 +28,8 @@ cpdef triplets(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, int
             q = [q[i] for i in [0, 2, 1]]
         # add some noise
         if noise:
-            if np.random.rand() > 1. / (1. + c_exp(-1. * steepness * np.abs(score))):
+            if np.random.rand() > 1. / (1. + c_exp(-1. * abs(score))):
+                #print(1. / (1. + c_exp(-1. * abs(score))))
                 q = [q[i] for i in [0, 2, 1]]
         S.append(q)
     return S
@@ -45,13 +46,16 @@ cpdef np.ndarray[DTYPE_t, ndim=3] M_set(list S, np.ndarray[DTYPE_t, ndim=2] X):
 
     for t in range(num_t):
         i, j, k =  S[t]
-        M[t] = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k]) \
+        # M[t] = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k]) \
+        #       - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
+        M[t] = (np.outer(X[i], X[j]) + np.outer(X[j], X[i]) \
+             -  np.outer(X[i], X[k]) - np.outer(X[k], X[i])\
               - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
     return M
 
 cpdef np.ndarray[DTYPE_t, ndim=2] features(int n, int p):
     """
-    Generate a set of 0 mean, unit variance feature vectors for the points
+    Generate a set of 0 mean, unit norm feature vectors for the points
 
     Inputs:
     (int) n: the number of points
@@ -60,8 +64,8 @@ cpdef np.ndarray[DTYPE_t, ndim=2] features(int n, int p):
     Returns:
     ndarray(n x p) X: matrix where each row is a feature vector
     """
-    cdef np.ndarray[DTYPE_t, ndim=2] X = np.random.rand(n, p)
-    X = (X - np.mean(X)) / np.std(X)        # make 0 mean, unit variance
+    cdef np.ndarray[DTYPE_t, ndim=2] X = np.random.randn(n, p)/np.sqrt(p)
+    # X = X/np.linalg.norm(X, axis=1)[:, np.newaxis]
     return X
 
 cpdef np.ndarray[DTYPE_t, ndim=2] kernel(int p, int d):
@@ -80,19 +84,30 @@ cpdef np.ndarray[DTYPE_t, ndim=2] kernel(int p, int d):
     cdef np.ndarray[DTYPE_t, ndim=2] subK, K 
     cdef np.ndarray[long, ndim=1] inds 
     cdef int r, i, j, c 
-    
-    subK = np.random.rand(d, d)
+    # CASE OF GOOD NUCLEAR NORM
+    subK = np.sqrt(p/np.sqrt(d))*np.random.randn(d, d)/np.sqrt(d)
+    #
     subK = np.dot(subK.T, subK)
-    subK = 0.5 * subK + 0.5 * subK.T        # psd, symmetric submatrix
+    #subK = 0.5 * subK + 0.5 * subK.T        # psd, symmetric submatrix
     inds = np.arange(p)
     np.random.shuffle(inds)
     inds = inds[:d]             # get d random indicies
 
     K = np.zeros((p, p))
-    for r, i in enumerate(inds):
-        for c, j in enumerate(inds):
-            K[i, j] = subK[r, c]
-    return projectPSDRankD(K, d)
+    K[[[i] for i in inds], inds] = subK
+    
+    # for r, i in enumerate(inds):
+    #     for c, j in enumerate(inds):
+    #         K[i, j] = subK[r, c]
+
+
+    #subK = np.sqrt(np.sqrt(d))*np.random.randn(p, d)/np.sqrt(d)
+    #K = np.dot(subK, subK.T)
+    
+    return K
+
+def norm_L12(A):
+    return np.sum(np.linalg.norm(A, axis=1))
 
 def getGrad(K, M):
     return fullGradient(K, M)
@@ -105,6 +120,9 @@ def getLoss(K, M):
 
 def getPartial(K, M_t):
     return partialGradientK(K, M_t)
+
+def L12_projection(K, tau):
+    return project_L12(K, tau)
 
 @blackbox.record
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
@@ -136,28 +154,28 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     list[float]          log_loss: logistic loss at each iteration
     """
     # select proximal operator
-    if not (regularization == "L12" or regularization == "nucNorm" or regularization == "L1"): 
-        raise AssertionError("Please choose 'L12 or 'nucNorm' for parameter 'regularization' ")
+    if not (regularization == "L12" or regularization == "nucNorm" 
+            or regularization == "L1" or regularization == "alternating"): 
+        raise AssertionError("Please choose 'alternating', 'L1', L12 or 'nucNorm' for parameter 'regularization' ")
 
-    cdef int n, p, t, inner_t
+    cdef int n, p, t, inner_t, parity
     cdef double dif, alpha, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
     cdef list log_loss            # logistic loss
     cdef list emp_loss            # empirical loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
 
-    X = (X - np.mean(X)) / np.std(X)        # make features 0 mean, unit variance
-
     dif = np.finfo(float).max       # realmax 
     n = X.shape[0]
     p = X.shape[1]
-    K = kernel(p, d)            # get a random Kernel to initialize
+    K = kernel(p, p)            # get a random dense Kernel to initialize
     t = 0                   # iteration count
     alpha = 200.             # step size
     log_loss = []
     emp_loss = []
 
     while t < maxits:
+        parity = t%2 == 1
         K_old = K
         emp_loss_0, log_loss_0 = lossK(K_old, M)
         t += 1
@@ -170,6 +188,8 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             K = prox_L1(K_old - alpha * G, lam, d)
         elif regularization == "nucNorm":
             K = prox_nucNorm(K_old - alpha * G, lam, d)
+        elif regularization == 'alternating':
+            K = alternating_projection(K_old - alpha * G, lam, parity)
 
         # stopping criteria
         if dif < epsilon or normG < epsilon or alpha < epsilon:
@@ -189,6 +209,8 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                 K = prox_L1(K_old - alpha * G, lam, d)
             elif regularization == "nucNorm":
                 K = prox_nucNorm(K_old - alpha * G, lam, d)
+            elif regularization == 'alternating':
+                K = alternating_projection(K_old - alpha * G, lam, parity)
             emp_loss_k, log_loss_k = lossK(K, M)
             inner_t += 1
             if inner_t > 10:

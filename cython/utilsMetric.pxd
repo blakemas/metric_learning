@@ -78,7 +78,8 @@ cdef inline double queryScoreK(np.ndarray[DTYPE_t, ndim=2]K, np.ndarray[DTYPE_t,
     # X[j], K) + normK(X[k], X[k], K)
     cdef int i, j, k
     i, j, k = q[0], q[1], q[2]
-    cdef np.ndarray[DTYPE_t, ndim=2] M_t = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k]) \
+    cdef np.ndarray[DTYPE_t, ndim=2] M_t = (np.outer(X[i], X[j]) + np.outer(X[j], X[i]) \
+              - np.outer(X[i], X[k]) - np.outer(X[k], X[i])\
               - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
     return tripletScoreK(K, M_t)
 
@@ -124,11 +125,23 @@ cdef inline np.ndarray[DTYPE_t, ndim=1]softThreshold(np.ndarray[DTYPE_t, ndim=1]
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=2] projectPSD(np.ndarray[DTYPE_t, ndim=2] K):
+    '''
+    Project onto rank d psd matrices
+    '''
+    cdef np.ndarray[DTYPE_t, ndim=2] V
+    cdef np.ndarray[DTYPE_t, ndim=1] D
+    D, V = np.linalg.eigh(K)
+    D = np.maximum(D, 0)
+    return np.dot(np.dot(V, np.diag(D)), V.T)
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef inline np.ndarray[DTYPE_t, ndim=2] projectPSDRankD(np.ndarray[DTYPE_t, ndim=2] K, int d):
     '''
     Project onto rank d psd matrices
     '''
-    cdef np.ndarray[DTYPE_t, ndim=2] Vfrom
+    cdef np.ndarray[DTYPE_t, ndim=2] V
     cdef np.ndarray[DTYPE_t, ndim=1] D 
     cdef int n, i
 
@@ -145,7 +158,42 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] projectPSDRankD(np.ndarray[DTYPE_t, ndim
 @cython.boundscheck(False)
 @cython.wraparound(False)
 cdef inline np.ndarray[DTYPE_t, ndim=2] prox_L12(np.ndarray[DTYPE_t, ndim=2] K, double lam, int d):
-    return projectPSDRankD(groupLasso(K, lam), d)
+    return projectPSD(groupLasso(K, lam))
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=1] project_L1(np.ndarray[DTYPE_t, ndim=1] v, double tau):
+    """
+    Project onto the L1 ball of radius tau
+    """
+    if np.linalg.norm(v, ord=1) <= tau:
+        return v
+    cdef np.ndarray[DTYPE_t, ndim=1] u = np.sort(v)[::-1]
+    cdef np.ndarray[DTYPE_t, ndim=1] sv = np.cumsum(u)
+    cdef int rho = int(np.nonzero(u > np.divide((sv - tau), 1 + np.arange(len(u))))[0][-1])
+    cdef double theta = np.maximum(0., (sv[rho] - tau)/(rho + 1.))
+    return np.multiply(np.sign(v), np.maximum(np.abs(v) - theta, 0.))
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=2] project_L12(np.ndarray[DTYPE_t, ndim=2] M, double tau):
+    """
+    Project onto the L12 ball of radius tau
+    """
+    cdef np.ndarray[DTYPE_t, ndim=1] row_l2_norms = np.sqrt(np.sum(np.abs(M)**2, axis=1))
+    cdef np.ndarray[DTYPE_t, ndim=1] w = project_L1(row_l2_norms, tau)
+    return M/row_l2_norms[:, np.newaxis] * w[:, np.newaxis]
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection(np.ndarray[DTYPE_t, ndim=2] K, double tau, parity):
+    """
+    Project onto the L12 ball of radius tau
+    """
+    if parity:
+        return projectPSD(K)
+    else:
+        return project_L12(K, tau)
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -159,19 +207,13 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] prox_nucNorm(np.ndarray[DTYPE_t, ndim=2]
     """
     Nuclear norm regularization and then project onto rank D PSD
     """
-    cdef np.ndarray[DTYPE_t, ndim=2] Vfrom
+    cdef np.ndarray[DTYPE_t, ndim=2] V
     cdef np.ndarray[DTYPE_t, ndim=1] D
     cdef int n, i 
 
     n = K.shape[0]
     D, V = np.linalg.eigh(K)
-    D = softThreshold(D, lam)           # threshold the eigenvalues
-    perm = D.argsort()
-    bound = np.max(D[perm][-d], 0)
-    
-    for i in range(n):
-        if D[i] < bound:
-            D[i] = 0
+    D = np.maximum(D - lam, 0)        # soft threshold and project onto PSD
     return np.dot(np.dot(V, np.diag(D)), V.transpose())
 
 
