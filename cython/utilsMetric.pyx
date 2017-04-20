@@ -5,41 +5,26 @@ import numpy as np
 cimport numpy as np 
 from libc.math cimport exp as c_exp
 from libc.math cimport log as c_log
-
-# DTYPE = np.float64
-# ctypedef np.float64_t DTYPE_t
 cimport cython
-import blackbox
 
 cpdef triplets(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, int pulls, double steepness=1., noise=False):
-    """
-    Generate a random set of #pulls triplets
-    """
     S = []
     cdef int n = X.shape[0]
     cdef list q 
     cdef int t 
     cdef double score 
     for t in range(0, pulls):
-        # get random triplet
         q = randomQuery(n)
         score = queryScoreK(K, X, q)
-        # align it so it agrees with Ktrue: "q[0] is more similar to q[1] than
-        # q[2]"
         if score < 0:
             q = [q[i] for i in [0, 2, 1]]
-        # add some noise
         if noise:
             if np.random.rand() > 1. / (1. + c_exp(-1. * abs(score))):
-                #print(1. / (1. + c_exp(-1. * abs(score))))
                 q = [q[i] for i in [0, 2, 1]]
         S.append(q)
     return S
 
 cpdef np.ndarray[DTYPE_t, ndim=3] M_set(list S, np.ndarray[DTYPE_t, ndim=2] X):
-    """
-    Precompute M_t matrices for speed (Note: uses tons of memory)
-    """
     cdef int n, p, i, j, k
     n = X.shape[0]
     p = X.shape[1]
@@ -48,71 +33,39 @@ cpdef np.ndarray[DTYPE_t, ndim=3] M_set(list S, np.ndarray[DTYPE_t, ndim=2] X):
 
     for t in range(num_t):
         i, j, k =  S[t]
-        # M[t] = (2. * np.outer(X[i], X[j]) - 2. * np.outer(X[i], X[k]) \
-        #       - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
         M[t] = (np.outer(X[i], X[j]) + np.outer(X[j], X[i]) \
              -  np.outer(X[i], X[k]) - np.outer(X[k], X[i])\
               - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
     return M
 
-cpdef np.ndarray[DTYPE_t, ndim=2] features(int n, int p):
-    """
-    Generate a set of 0 mean, unit norm feature vectors for the points
-
-    Inputs:
-    (int) n: the number of points
-    (int) p: the number of dimensions
-
-    Returns:
-    ndarray(n x p) X: matrix where each row is a feature vector
-    """
-    cdef np.ndarray[DTYPE_t, ndim=2] X = np.random.randn(n, p)/np.sqrt(p)
-    # X = X/np.linalg.norm(X, axis=1)[:, np.newaxis]
+cpdef np.ndarray[DTYPE_t, ndim=2] features(int n, int p, double scale):
+    cdef np.ndarray[DTYPE_t, ndim=2] X = np.random.randn(n, p)/np.sqrt(p)*scale
     return X
 
-cpdef np.ndarray[DTYPE_t, ndim=2] kernel(int p, int d):
-    """
-    Create a p by p symmetric PSD kernel with d^2 non-zero entries
-
-    Inputs:
-    (int) p: the total number of features in the feature vectors x
-    (int) d: the number of relevant features
-
-    Returns:
-    ndarray[float] K: p by p kernel matrix
-
-    Usage: K = kernel(100,5)
-    """
+cpdef np.ndarray[DTYPE_t, ndim=2] kernel(int p, int d, double scale, sparse):
     cdef np.ndarray[DTYPE_t, ndim=2] subK, K 
     cdef np.ndarray[long, ndim=1] inds 
-    cdef int r, i, j, c 
-    # CASE OF GOOD NUCLEAR NORM
-    subK = np.sqrt(p/np.sqrt(d))*np.random.randn(d, d)/np.sqrt(d)
-    #
-    subK = np.dot(subK.T, subK)
-    #subK = 0.5 * subK + 0.5 * subK.T        # psd, symmetric submatrix
-    inds = np.arange(p)
-    np.random.shuffle(inds)
-    inds = inds[:d]             # get d random indicies
+    cdef int r, i, j, c
+    if sparse:
+        subK = scale*np.random.randn(d, d)/np.sqrt(d)
+        subK = np.dot(subK.T, subK)
+        inds = np.arange(p)
+        np.random.shuffle(inds)
+        inds = inds[:d]             # get d random indicies
 
-    K = np.zeros((p, p))
-    K[[[i] for i in inds], inds] = subK
-    
-    # for r, i in enumerate(inds):
-    #     for c, j in enumerate(inds):
-    #         K[i, j] = subK[r, c]
-
-
-    #subK = np.sqrt(np.sqrt(d))*np.random.randn(p, d)/np.sqrt(d)
-    #K = np.dot(subK, subK.T)
+        K = np.zeros((p, p))
+        K[[[i] for i in inds], inds] = subK
+    else:
+        K = scale*np.random.randn(p, d)/np.sqrt(d)
+        K = np.dot(K, K.T)
     
     return K
 
 def norm_L12(A):
     return np.sum(np.linalg.norm(A, axis=1))
 
-def getGrad(K, M):
-    return fullGradient(K, M)
+def norm_nuc(A):
+    return np.trace(A)
 
 def getScore(K, M_t):
     return tripletScoreK(K, M_t)
@@ -120,13 +73,7 @@ def getScore(K, M_t):
 def getLoss(K, M):
     return lossK(K, M)
 
-def getPartial(K, M_t):
-    return partialGradientK(K, M_t)
 
-def L12_projection(K, tau):
-    return project_L12(K, tau)
-
-@blackbox.record
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                                                             regularization='L12', 
                                                             double c1=1e-5, 
@@ -155,25 +102,17 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     list[float]          emp_loss: empirical loss at each iteration
     list[float]          log_loss: logistic loss at each iteration
     """
-    # select proximal operator
-    if not (regularization == "L12" or regularization == "nucNorm" 
-            or regularization == "L1" or regularization == "alternating"): 
-        raise AssertionError("Please choose 'alternating', 'L1', L12 or 'nucNorm' for parameter 'regularization' ")
-
-    cdef int n, p, t, inner_t, bounce, parity
+    cdef int n, p, t, inner_t
     cdef double dif, alpha, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
     cdef list log_loss            # logistic loss
     cdef list emp_loss            # empirical loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-
-    if regularization == 'alternating':
-        bounce = 4
-
+    cdef int bounce = 4
     dif = np.finfo(float).max       # realmax 
     n = X.shape[0]
     p = X.shape[1]
-    K = kernel(p, p)            # get a random dense Kernel to initialize
+    K = kernel(p, p, 1, False)            # get a random dense Kernel to initialize
     t = 0                   # iteration count
     alpha = 200.             # step size
     log_loss = []
@@ -186,13 +125,9 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         alpha = 1.3 * alpha                                 # update step size
         G = fullGradient(K_old, M)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
-        if regularization == "L12":
-            K = prox_L12(K_old - alpha * G, lam, d)                                    
-        elif regularization == "L1":
-            K = prox_L1(K_old - alpha * G, lam, d)
-        elif regularization == "nucNorm":
-            K = prox_nucNorm(K_old - alpha * G, lam, d)
-        elif regularization == 'alternating':
+        if regularization == 'norm_nuc':
+            K = project_nucNorm(K_old - alpha * G, lam)
+        elif regularization == 'norm_L12':
             K = alternating_projection(K_old - alpha * G, lam, bounce)
 
         # stopping criteria
@@ -207,13 +142,9 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         inner_t = 0         # number of steps back
         while log_loss_k > log_loss_0 - c1 * alpha * normG**2:
             alpha = alpha * rho
-            if regularization == "L12":
-                K = prox_L12(K_old - alpha * G, lam, d)
-            elif regularization == "L1":
-                K = prox_L1(K_old - alpha * G, lam, d)
-            elif regularization == "nucNorm":
-                K = prox_nucNorm(K_old - alpha * G, lam, d)
-            elif regularization == 'alternating':
+            if regularization == 'norm_nuc':
+                K = project_nucNorm(K_old - alpha * G, lam)
+            elif regularization == 'norm_L12':
                 K = alternating_projection(K_old - alpha * G, lam, bounce)
             emp_loss_k, log_loss_k = lossK(K, M)
             inner_t += 1
@@ -221,17 +152,91 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                 break
         alpha = 1.1*alpha
         dif = np.linalg.norm(K - K_old, ord='fro')
-        
-        blackbox.logdict({'iter': t,
-                        'emp_loss': emp_loss_k,
-                        'log_loss': log_loss_k,
-                        'dif': dif,
-                        'back_steps': inner_t,
-                        'alpha': alpha})
-        blackbox.save(verbose=verbose)
-
+        if verbose:
+            print({'iter': t,
+                   'emp_loss': emp_loss_k,
+                   'log_loss': log_loss_k,
+                   'dif': dif,
+                   'back_steps': inner_t,
+                   'alpha': alpha})
         log_loss.append(log_loss_k)
         emp_loss.append(emp_loss_k)
     return K, emp_loss, log_loss
+
+def euclidean_proj_l1ball(v, s=1):
+    assert s > 0, "Radius s must be strictly positive (%d <= 0)" % s
+    cdef int n = v.shape[0]  # will raise ValueError if v is not 1-D
+    # compute the vector of absolute values
+    cdef np.ndarray u = np.abs(v)
+    # check if v is already a solution
+    if u.sum() <= s:
+        # L1-norm is <= s
+        return v
+    # v is not already a solution: optimum lies on the boundary (norm == s)
+    # project *u* on the simplex
+    cdef np.ndarray w = euclidean_proj_simplex(u, s=s)
+    # compute the solution to the original problem on v
+    w *= np.sign(v)
+    return w
+
+def euclidean_proj_simplex(v, s=1):
+    assert s > 0, "Radius s must be strictly positive (%d <= 0)" % s
+    cdef int n = v.shape[0]  # will raise ValueError if v is not 1-D
+    # check if we are already on the simplex
+    if v.sum() == s and np.alltrue(v >= 0):
+        # best projection: itself!
+        return v
+    # get the array of cumulative sums of a sorted (decreasing) copy of v
+    u = np.sort(v)[::-1]
+    cssv = np.cumsum(u)
+    # get the number of > 0 components of the optimal solution
+    rho = np.nonzero(u * np.arange(1, n+1) > (cssv - s))[0][-1]
+    # compute the Lagrange multiplier associated to the simplex constraint
+    theta = (cssv[rho] - s) / (rho + 1.0)
+    # compute the projection by thresholding v using theta
+    w = (v - theta).clip(min=0)
+    return w
+
+cpdef inline np.ndarray[DTYPE_t, ndim=2] projectPSD(np.ndarray[DTYPE_t, ndim=2] K):
+    '''
+    Project onto rank d psd matrices
+    '''
+    cdef np.ndarray[DTYPE_t, ndim=2] V
+    cdef np.ndarray[DTYPE_t, ndim=1] D
+    D, V = np.linalg.eigh(K)
+    D = np.maximum(D, 0)
+    return np.dot(np.dot(V, np.diag(D)), V.T)
+
+cpdef inline np.ndarray[DTYPE_t, ndim=2] project_L12(np.ndarray[DTYPE_t, ndim=2] M, double tau):
+    """
+    Project onto the L12 ball of radius tau
+    """
+    if np.sum(np.linalg.norm(M, axis=1)) <= tau:
+        return M
+    cdef np.ndarray[DTYPE_t, ndim=1] row_l2_norms = np.sqrt(np.sum(np.abs(M)**2, axis=1))
+    cdef np.ndarray[DTYPE_t, ndim=1] w = euclidean_proj_l1ball(row_l2_norms, tau)
+    for i in range(M.shape[0]):
+        if row_l2_norms[i] != 0:
+            M[i,:] = M[i,:]/row_l2_norms[i]*w[i] 
+    return M
+
+cpdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection(np.ndarray[DTYPE_t, ndim=2] K, double tau, bounce):
+    """
+    Project onto the L12 ball of radius tau intersect the PSD cone via alternating projection
+    """
+    for _ in range(bounce):
+        K = projectPSD(project_L12(K, tau))
+    return K
+
+cpdef project_nucNorm(M, R):
+    '''
+    Project onto psd nuclear norm ball of radius R
+    '''
+    cdef int n = M.shape[0]
+    if R!=None:
+        D, V = np.linalg.eigh(M)
+        D = euclidean_proj_simplex(D, s=R)
+        M = np.dot(np.dot(V,np.diag(D)),V.transpose());
+    return M
 
 
