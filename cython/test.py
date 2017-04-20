@@ -16,15 +16,15 @@ n, p, d = 200, 8, 2
 
 X = features(n, p)
 Ktrue = kernel(p, d)
-lam = norm_L12(Ktrue)
-num_samples = 2000
+lam = 2*norm_L12(Ktrue)
+num_samples = 1000
 S = triplets(Ktrue, X, num_samples, noise=True)
 
 blackbox.set_experiment("test_data")
 blackbox.takeoff(("Test_experiment"), force=True)
 Khat, emp_loss, log_loss = computeKernel(X, S, d, lam, 
                                         maxits=100, 
-                                        epsilon=1e-6, 
+                                        epsilon=1e-3, 
                                         regularization='alternating', 
                                         verbose=True)
 blackbox.land()

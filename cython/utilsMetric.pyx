@@ -6,6 +6,8 @@ cimport numpy as np
 from libc.math cimport exp as c_exp
 from libc.math cimport log as c_log
 
+# DTYPE = np.float64
+# ctypedef np.float64_t DTYPE_t
 cimport cython
 import blackbox
 
@@ -158,12 +160,15 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             or regularization == "L1" or regularization == "alternating"): 
         raise AssertionError("Please choose 'alternating', 'L1', L12 or 'nucNorm' for parameter 'regularization' ")
 
-    cdef int n, p, t, inner_t, parity
+    cdef int n, p, t, inner_t, bounce, parity
     cdef double dif, alpha, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
     cdef list log_loss            # logistic loss
     cdef list emp_loss            # empirical loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
+
+    if regularization == 'alternating':
+        bounce = 4
 
     dif = np.finfo(float).max       # realmax 
     n = X.shape[0]
@@ -175,7 +180,6 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     emp_loss = []
 
     while t < maxits:
-        parity = t%2 == 1
         K_old = K
         emp_loss_0, log_loss_0 = lossK(K_old, M)
         t += 1
@@ -189,7 +193,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         elif regularization == "nucNorm":
             K = prox_nucNorm(K_old - alpha * G, lam, d)
         elif regularization == 'alternating':
-            K = alternating_projection(K_old - alpha * G, lam, parity)
+            K = alternating_projection(K_old - alpha * G, lam, bounce)
 
         # stopping criteria
         if dif < epsilon or normG < epsilon or alpha < epsilon:
@@ -210,7 +214,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             elif regularization == "nucNorm":
                 K = prox_nucNorm(K_old - alpha * G, lam, d)
             elif regularization == 'alternating':
-                K = alternating_projection(K_old - alpha * G, lam, parity)
+                K = alternating_projection(K_old - alpha * G, lam, bounce)
             emp_loss_k, log_loss_k = lossK(K, M)
             inner_t += 1
             if inner_t > 10:

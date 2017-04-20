@@ -180,20 +180,26 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] project_L12(np.ndarray[DTYPE_t, ndim=2] 
     """
     Project onto the L12 ball of radius tau
     """
+    if np.sum(np.linalg.norm(M, axis=1)) <= tau:
+        return M
     cdef np.ndarray[DTYPE_t, ndim=1] row_l2_norms = np.sqrt(np.sum(np.abs(M)**2, axis=1))
     cdef np.ndarray[DTYPE_t, ndim=1] w = project_L1(row_l2_norms, tau)
     return M/row_l2_norms[:, np.newaxis] * w[:, np.newaxis]
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection(np.ndarray[DTYPE_t, ndim=2] K, double tau, parity):
+cdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection(np.ndarray[DTYPE_t, ndim=2] K, double tau, bounce):
     """
-    Project onto the L12 ball of radius tau
+    Project onto the L12 ball of radius tau intersect the PSD cone via alternating projection
     """
-    if parity:
-        return projectPSD(K)
-    else:
-        return project_L12(K, tau)
+    # if parity == 1:
+    #     return project_L12(K, tau)
+    # else:
+    #     return projectPSD(K)
+    for _ in range(bounce):
+        K = project_L12(projectPSD(K), tau)
+    return K
+    # return K
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
