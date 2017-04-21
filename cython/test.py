@@ -41,6 +41,10 @@ plt.imshow(Ktrue, interpolation='none')
 plt.subplot(122)
 plt.imshow(Khat, interpolation='none')
 plt.show()
+
+
+
+
 # opvalues = []
 # for p in range(2,200,10):
 #     avg = 0

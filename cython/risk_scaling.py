@@ -73,7 +73,6 @@ def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
         rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
         rel_err_list.append((rel_err_nuc, rel_err_L12))
         loss_list.append((loss_nuc, loss_L12))
-
         print(("id:{}. Current relative error: {}, log_losses: {},"
                "New test of type {} samples. Dimension:{}. Sparsity:{}. Iteration: {}").format(id,
                                                                                                (rel_err_nuc, rel_err_L12),

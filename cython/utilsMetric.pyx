@@ -104,17 +104,17 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     """
     cdef int n, p, t, inner_t
     cdef double dif, alpha, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
-    cdef list log_loss            # logistic loss
-    cdef list emp_loss            # empirical loss
+    cdef list log_loss
+    cdef list emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
     cdef int bounce = 4
-    dif = np.finfo(float).max       # realmax 
+    dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
-    K = kernel(p, p, 1, False)            # get a random dense Kernel to initialize
-    t = 0                   # iteration count
-    alpha = 200.             # step size
+    K = kernel(p, p, 1, False)
+    t = 0
+    alpha = 200.
     log_loss = []
     emp_loss = []
 
