@@ -56,21 +56,21 @@ def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
     Ks = [(Ktrue,Ktrue)]
     it = 0                                      
     while max(rel_err_L12, rel_err_nuc) > acc:
-        it += 1         
-        Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d, norm_nuc(Ktrue), 
-                                                     maxits=100, 
-                                                     epsilon=1e-5, 
-                                                     regularization='norm_nuc',
-                                                     verbose=False)
-
-        Khat_L12, emp_loss, log_loss = computeKernel(X, S, d, norm_L12(Ktrue), 
-                                                     maxits=100, 
-                                                     epsilon=1e-5, 
-                                                     regularization='norm_L12',
-                                                     verbose=False)
-
-        rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
-        rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
+        it += 1 
+        if rel_err_nuc > acc:        
+            Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d, norm_nuc(Ktrue), 
+                                                         maxits=100, 
+                                                         epsilon=1e-5, 
+                                                         regularization='norm_nuc',
+                                                         verbose=False)
+            rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
+        if rel_err_L12 > acc:
+            Khat_L12, emp_loss, log_loss = computeKernel(X, S, d, norm_L12(Ktrue), 
+                                                         maxits=100, 
+                                                         epsilon=1e-5, 
+                                                         regularization='norm_L12',
+                                                         verbose=False)
+            rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
         rel_err_list.append((rel_err_nuc, rel_err_L12))
         loss_list.append((loss_nuc, loss_L12))
         print(("id:{}. Current relative error: {}, log_losses: {},"
@@ -131,7 +131,7 @@ def get_data(stream_name):
     return pulls, dims
 
 def plots():
-    data = reader_process('risk_stream_200_metric_1')
+    data = reader_process('risk_metric_10_30')
     norm_nuc = defaultdict(list)
     norm_L12 = defaultdict(list)
 
@@ -162,13 +162,24 @@ if __name__ == '__main__':
     if compute:
         q = mp.Manager().Queue()
         writer_process(q)
-        d = [5, 10, 15, 20, 25]# 30, 35, 40, 45]
-        step = [50]*len(d)                                 
-        p = [50]*len(d)
-        n = 100
-        acc = 0.1       # accuracy relative to Xtrue to stop at
+        d = [10, 20, 30]# 40, 50, 60, 70, 80]
+        #d = [40]
+        step = [200]*len(d)                                 
+        p = [100]*len(d)
+        n = 200
+        acc = 0.02       # accuracy relative to Xtrue to stop at
         avg = 4          # number of runs to average over
         pulls = test_dim(n, d, p, step, avg=avg, acc=acc)
+
+        # q = mp.Manager().Queue()
+        # writer_process(q)
+        # d = [5, 10, 15, 20, 25 30, 35, 40, 45]
+        # step = [50]*len(d)                                 
+        # p = [50]*len(d)
+        # n = 100
+        # acc = 0.1       # accuracy relative to Xtrue to stop at
+        # avg = 4          # number of runs to average over
+        # pulls = test_dim(n, d, p, step, avg=avg, acc=acc)
     else:
         plots()
 
