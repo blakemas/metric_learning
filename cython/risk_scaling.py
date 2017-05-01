@@ -9,6 +9,7 @@ mn.patch()
 
 import numpy as np 
 from scipy.optimize import curve_fit
+from scipy.linalg import orth
 import matplotlib.pyplot as plt 
 from joblib import Parallel, delayed
 from utilsMetric import *
@@ -30,9 +31,8 @@ def comparative_risk(R_star, K, X, pTrue):
 def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
     np.random.seed(seed)
     id = np.random.randint(1000)
-    Ktrue = np.eye(p)
-    for i in range(d, p):
-        Ktrue[i, i] = 0
+    U = orth(np.random.randn(p,d))
+    Ktrue = np.dot(U,U.T)
     X = features(n, p, scale = d**.25)
     rel_err_L12 = float('inf')
     rel_err_nuc = float('inf')
@@ -52,7 +52,7 @@ def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
     rel_err_list = []
     loss_list = []
     print('id:{}, true Bayes error: {}, p:{}, d:{}'.format(id, R_star, p, d))
-    S = triplets(Ktrue, X, step, noise=True)
+    S = triplets(Ktrue, X, 5000+step, noise=True)
     Ks = [(Ktrue,Ktrue)]
     it = 0                                      
     while max(rel_err_L12, rel_err_nuc) > acc:
@@ -65,7 +65,7 @@ def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
                                                          verbose=False)
             rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
         if rel_err_L12 > acc:
-            Khat_L12, emp_loss, log_loss = computeKernel(X, S, d, norm_L12(Ktrue), 
+            Khat_L12, emp_loss, log_loss = computeKernel(X, S, d, norm_nuc(Ktrue), #  
                                                          maxits=100, 
                                                          epsilon=1e-5, 
                                                          regularization='norm_L12',
@@ -80,7 +80,7 @@ def estimate_pulls(n, d, p, seed, q, step=5000, acc=0.1, max_norm=1.):
                                                                                                len(S), p, d, it))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
-    q.put({'pulls':len(S), 'Ks':Ks, 'n':n, 'd':d, 'p':p, 'step':step, 'X':X, 
+    q.put({'pulls':len(S), 'Ks':Ks, 'n':n, 'd':d, 'p':p, 'start':5000, 'step':step, 'X':X, 
            'rel_err_list':rel_err_list, 'loss_list':loss_list})
     return len(S) 
 
@@ -93,7 +93,7 @@ def test_dim(n, d, p, step, avg=3, acc=0.1):
 
 def writer_process(q):
     def writer(q):
-        stream = io.open('risk_stream_200_metric_1','wb', buffering=0)
+        stream = io.open('test_dump','wb', buffering=0)
         while True:
             data = q.get()
             stream.write(msgpack.packb(data))
@@ -131,43 +131,68 @@ def get_data(stream_name):
     return pulls, dims
 
 def plots():
-    data = reader_process('risk_metric_10_30')
+    data = reader_process('risk_metric_p20_d6-20_n50')
+    recovery_err_nuc = defaultdict(list)
+    recovery_err_L12 = defaultdict(list)
+
     norm_nuc = defaultdict(list)
     norm_L12 = defaultdict(list)
-
+    start = 5000
     for run in data:
         keys = ['rel_err_list', 'n', 'd', 'p', 'step']
         risks, n, d, p, step = [run[k] for k in keys]
-        tries_risk_nuc = 0
-        tries_risk_L12 = 0
+        tries_risk_nuc = 5000
+        tries_risk_L12 = 5000
         for r in risks:
-            print r
-            if r[0] > .1:
+            if r[0] > .003:
                 tries_risk_nuc += step
-            if r[1] > .1:
+            if r[1] > .003:
                 tries_risk_L12 += step
         print 'd', d, tries_risk_nuc, tries_risk_L12
-        norm_nuc[d].append(tries_risk_nuc)
+        norm_nuc[d].append(tries_risk_nuc)        
         norm_L12[d].append(tries_risk_L12)
 
+        # Samples to recovery error
+        recovery_samples_nuc = 5000
+        recovery_samples_L12 = 5000
+        Ktrue = np.eye(p)
+        for i in range(d, p):
+            Ktrue[i, i] = 0
+
+        for K in run['Ks'][1:]:
+            nuc_recovery = np.linalg.norm(Ktrue-K[0],'fro')**2/np.linalg.norm(Ktrue,'fro')**2
+            L12_recovery = np.linalg.norm(Ktrue-K[1],'fro')**2/np.linalg.norm(Ktrue,'fro')**2
+            if nuc_recovery > .10:
+                recovery_samples_nuc += step
+            if L12_recovery > .10:
+                recovery_samples_L12 += step
+
+        recovery_err_nuc[d].append(recovery_samples_nuc)
+        recovery_err_L12[d].append(recovery_samples_L12)
     x = sorted(norm_nuc.keys())
     print x
     plt.figure(1)
-    plt.plot(x, [np.mean(norm_nuc[d]) for d in x], color='red')
-    plt.plot(x, [np.mean(norm_L12[d]) for d in x])
+    plt.subplot(211)
+    plt.title('Samples to get excess_risk < .003')
+    plt.errorbar(x, [np.mean(norm_nuc[d]) for d in x], yerr=[np.std(norm_nuc[d]) for d in x], color='red')
+    plt.errorbar(x, [np.mean(norm_L12[d]) for d in x], yerr=[np.std(norm_L12[d]) for d in x])
+    plt.subplot(212)
+    plt.title('Samples to get generalization error < .01')
+    plt.errorbar(x, [np.mean(recovery_err_nuc[d]) for d in x], yerr=[np.std(recovery_err_nuc[d]) for d in x], color='red')
+    plt.errorbar(x, [np.mean(recovery_err_L12[d]) for d in x], yerr=[np.std(recovery_err_L12[d]) for d in x])
+
     plt.show()
-    
+
 if __name__ == '__main__':
     compute = eval(sys.argv[1])
     if compute:
         q = mp.Manager().Queue()
         writer_process(q)
-        d = [10, 20, 30]# 40, 50, 60, 70, 80]
-        #d = [40]
-        step = [200]*len(d)                                 
-        p = [100]*len(d)
-        n = 200
-        acc = 0.02       # accuracy relative to Xtrue to stop at
+        d = [10]#, 8, 10, 12, 14, 16, 18, 20]
+        step = [2000]*len(d)                                 
+        p = [20]*len(d)
+        n = 30
+        acc = 0.001       # accuracy relative to Xtrue to stop at
         avg = 4          # number of runs to average over
         pulls = test_dim(n, d, p, step, avg=avg, acc=acc)
 

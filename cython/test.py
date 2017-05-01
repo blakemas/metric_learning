@@ -1,11 +1,12 @@
-from __future__ import division, print_function
+from __future__ import division
 
+import time
 import numpy as np
 import scipy.io
 import matplotlib.pyplot as plt
 from utilsMetric import *
 
-n, p, d = 200, 8, 2
+n, p, d = 50, 20, 6
 
 # A = np.array([[0,0,0],[4.,5.,6.],[0,0,0]])
 # print(np.sum(np.linalg.norm(A, axis=1)))
@@ -13,25 +14,68 @@ n, p, d = 200, 8, 2
 # print(A)
 # print(np.sum(np.linalg.norm(A, axis=1)))
 
+Ktrue = np.eye(p)
+for i in range(d, p):
+    Ktrue[i, i] = 0
 
 X = features(n, p, scale=d**.25)
-Ktrue = kernel(p, d, scale=d, sparse=True)
+#Ktrue = kernel(p, d, scale=d, sparse=True)
+
 lam = norm_L12(Ktrue)
 
 num_samples = 10000
 S = triplets(Ktrue, X, num_samples, noise=True)
+
+
+R_star = 0
+total = 0
+pTrue = np.zeros((n, n, n))
+Gtrue = np.dot(X, np.dot(Ktrue, X.T))
+for i in range(n):
+    for j in range(i):
+        for k in range(n):
+            if i != j and i != k and j!=k:
+                pp = 1/(1+np.exp(-(Gtrue[k,k] -2*Gtrue[i,k] + 2*Gtrue[i,j] - Gtrue[j,j])))
+                pTrue[i,j,k] = pp    
+                R_star += -pp*np.log(pp)
+                total += 1
+R_star = R_star/total
+print 'R_star', R_star
+
+
+Ms = M_set(S, X)
+
+bayes_emp_loss, bayes_log_loss = getLoss(Ktrue, Ms)
+
+print('Ktrue log loss: {} '.format(bayes_log_loss))
+print('Ktrue emp loss: {} '.format(bayes_emp_loss))
+
 Khat, emp_loss, log_loss = computeKernel(X, S, d, lam, 
                                          maxits=100, 
                                          epsilon=1e-5, 
                                          regularization='norm_L12', 
                                          verbose=True)
-Ms = M_set(S, X)
+R_hat = 0
+total = 0
+Ghat = np.dot(X, np.dot(Khat, X.T))
+for i in range(n):
+    for j in range(i):
+        for k in range(n):
+            if i != j and i != k and j!=k:
+                pp = pTrue[i,j,k] 
+                R_hat += pp*np.log(1+np.exp(-(Ghat[k,k] -2*Ghat[i,k] + 2*Ghat[i,j] - Ghat[j,j])))
+                total += 1
+R_hat = R_hat/total
+print 'R_hat', R_hat
+print('Excess Risk: ', R_hat - R_star) 
+
+
 bayes_emp_loss, bayes_log_loss = getLoss(Ktrue, Ms)
 Khat_emp_loss, Khat_log_loss = getLoss(Khat, Ms)
 print('Ktrue log loss: {} Khat Log_loss: {}'.format(bayes_log_loss, Khat_log_loss))
 print('Ktrue emp loss: {} Khat emp_loss: {}'.format(bayes_emp_loss, Khat_emp_loss))
-print('Ktrue eig',Ktrue) 
-print('Khat eig',Khat) 
+#print('Ktrue eig',Ktrue) 
+#print('Khat eig',Khat) 
 rel_err = np.linalg.norm(Ktrue - Khat, ord='fro')**2/np.linalg.norm(Ktrue, ord='fro')**2
 print('Recovery error: ', rel_err)
 
