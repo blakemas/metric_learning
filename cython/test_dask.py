@@ -57,6 +57,7 @@ if __name__ == '__main__':
         from distributed import Client
         client = Client()       ###### can this be done with scheduler / worker setup and still use 
                                 ###### writer_process??
+        # client = Client(sys.argv[1])      argv[1] = IP address of scheduler
         stream_name = 'delete_me'
         q = mp.Manager().Queue()
         writer_process(stream_name, q)
