@@ -75,12 +75,13 @@ def getLoss(K, M):
 
 
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
-                                                            regularization='L12', 
-                                                            double c1=1e-5, 
-                                                            double rho=0.5, 
-                                                            int maxits=100, 
-                                                            double epsilon=1e-3, 
-                                                            verbose=False):
+                  regularization='L12', 
+                  double c1=1e-5, 
+                  double rho=0.5, 
+                  int maxits=100, 
+                  double epsilon=1e-3, 
+                  verbose=False,
+                  Kstart = None):
     """
     Compute a sparse, symmetric PSD kernel from triplet observations S feature vectors X,
     using projected gradient descent. Specifically, we wish to solve the following optimation:
@@ -104,17 +105,19 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     """
     cdef int n, p, t, inner_t
     cdef double dif, alpha, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
-    cdef list log_loss
-    cdef list emp_loss
+    cdef list log_loss, emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
     cdef int bounce = 4
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
-    K = kernel(p, p, 1, False)
+    if Kstart is None:
+        K = kernel(p, p, 1, False)
+    else:
+        K = Kstart
     t = 0
-    alpha = 200.
+    alpha = 10.
     log_loss = []
     emp_loss = []
 
@@ -131,7 +134,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             K = alternating_projection(K_old - alpha * G, lam, bounce)
 
         # stopping criteria
-        if dif < epsilon or normG < epsilon or alpha < epsilon:
+        if dif < epsilon or normG < epsilon*(1+log_loss_0) or alpha < epsilon:
             log_loss.append(log_loss_0)
             emp_loss.append(emp_loss_0)
             print("Exiting at iterate %d because stopping condition satisfied" % t)
@@ -157,11 +160,89 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                    'emp_loss': emp_loss_k,
                    'log_loss': log_loss_k,
                    'dif': dif,
+                   'normG': normG,
                    'back_steps': inner_t,
                    'alpha': alpha})
         log_loss.append(log_loss_k)
         emp_loss.append(emp_loss_k)
     return K, emp_loss, log_loss
+
+
+def computeKernelEpochSGD(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
+                          regularization='L12', 
+                          double a = 1,
+                          double c1=1e-5, 
+                          double rho=0.5, 
+                          int maxits_sgd=100,
+                          int maxits_gd=30,
+                          double epsilon=1e-3, 
+                          verbose=False):
+    
+    cdef double score, outer_loss
+    cdef int m = len(S)
+    cdef int epoch_length = len(S)    
+    cdef int t = 0
+    cdef int t_e = 0
+    cdef double rel_max_grad = float('inf')
+    cdef int p = X.shape[1]
+    cdef int n = X.shape[0]
+    cdef np.ndarray[DTYPE_t, ndim=2] K, G
+    cdef int bounce = 4
+    K = kernel(p, p, 1, False)
+    cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
+    
+    while t < maxits_sgd:
+        t += 1
+        t_e += 1
+        # check epoch conditions, udpate step size
+        if t_e % epoch_length == 0:
+            a = a*(1+a)**-1
+            epoch_length = 2*epoch_length
+            t_e = 0
+            if regularization == 'norm_nuc':
+                K = project_nucNorm(K, lam)
+            elif regularization == 'norm_L12':
+                K = alternating_projection(K, lam, bounce)
+
+            if epsilon>0 or verbose:
+                # get losses
+                emp_loss, log_loss = lossK(K, M)
+                # get gradient and check stopping-time statistics
+                G = fullGradient(K, M)
+                normG = np.linalg.norm(G, ord='fro')
+                print({'iter':t,
+                       'epoch':t_e,
+                       'emp_loss':emp_loss,
+                       'log_loss':log_loss,
+                       'G_norm':normG,
+                       'alpha':a})
+                if rel_max_grad < epsilon:
+                    break
+                
+            
+        # get random triplet unifomrly at random
+        # q = S[np.random.randint(m)]
+        # i,j,k = q
+        # score = np.dot(X[k],X[k]) -2*np.dot(X[i],X[k]) + 2*np.dot(X[i],X[j]) - np.dot(X[j],X[j])
+        # outer_loss = 1./(1.+c_exp(score))
+        # X[i] = X[i] + 2.*a*outer_loss*(X[j] - X[k])          # gradient update for X[i]
+        # X[j] = X[j] + 2.*a*outer_loss*(X[i] - X[j])          # gradient update for X[j]
+        # X[k] = X[k] + 2.*a*outer_loss*(X[k] - X[i])          # gradient update for X[k]
+        K = K - a*partialGradientK(K, M[np.random.randint(m)])
+        # X[q,:] = X[q,:] - a*grad_partial[q,:]
+        # project back onto ball such that norm(X[i])<=max_norm
+        #for i in q:
+        #    norm_i = np.linalg.norm(X[i])
+        #    if norm_i>max_norm:
+        #        X[i] = X[i] * (max_norm / norm_i)
+    return computeKernel(X, S, d, lam,
+                         regularization, 
+                         c1, 
+                         rho, 
+                         maxits_gd, 
+                         epsilon, 
+                         verbose,
+                         Kstart = K)
 
 def euclidean_proj_l1ball(v, s=1):
     assert s > 0, "Radius s must be strictly positive (%d <= 0)" % s
