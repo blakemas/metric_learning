@@ -108,7 +108,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     cdef list log_loss, emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-    cdef int bounce = 4
+    cdef int bounce = 10
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
@@ -187,7 +187,7 @@ def computeKernelEpochSGD(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double l
     cdef int p = X.shape[1]
     cdef int n = X.shape[0]
     cdef np.ndarray[DTYPE_t, ndim=2] K, G
-    cdef int bounce = 4
+    cdef int bounce = 10
     K = kernel(p, p, 1, False)
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
     
@@ -218,23 +218,8 @@ def computeKernelEpochSGD(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double l
                        'alpha':a})
                 if rel_max_grad < epsilon:
                     break
-                
-            
-        # get random triplet unifomrly at random
-        # q = S[np.random.randint(m)]
-        # i,j,k = q
-        # score = np.dot(X[k],X[k]) -2*np.dot(X[i],X[k]) + 2*np.dot(X[i],X[j]) - np.dot(X[j],X[j])
-        # outer_loss = 1./(1.+c_exp(score))
-        # X[i] = X[i] + 2.*a*outer_loss*(X[j] - X[k])          # gradient update for X[i]
-        # X[j] = X[j] + 2.*a*outer_loss*(X[i] - X[j])          # gradient update for X[j]
-        # X[k] = X[k] + 2.*a*outer_loss*(X[k] - X[i])          # gradient update for X[k]
+                            
         K = K - a*partialGradientK(K, M[np.random.randint(m)])
-        # X[q,:] = X[q,:] - a*grad_partial[q,:]
-        # project back onto ball such that norm(X[i])<=max_norm
-        #for i in q:
-        #    norm_i = np.linalg.norm(X[i])
-        #    if norm_i>max_norm:
-        #        X[i] = X[i] * (max_norm / norm_i)
     return computeKernel(X, S, d, lam,
                          regularization, 
                          c1, 
