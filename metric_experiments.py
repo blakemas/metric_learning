@@ -48,7 +48,7 @@ def sparse_case(n, d, p):
 def learn_metric_helper(args):
     return learn_metric(*args)
 
-def learn_metric(n, d, p, seed, step=5000, acc = .01, max_norm=1.):
+def learn_metric(n, d, p, seed, step=5000, start=5000, acc=.01):
     id = np.random.randint(1000)
     np.random.seed(seed)
     Ktrue, X = sparse_case(n, d, p)
@@ -73,7 +73,7 @@ def learn_metric(n, d, p, seed, step=5000, acc = .01, max_norm=1.):
     # List of relative errors per iteration
     rel_err_list = []
     loss_list = []
-    S = triplets(Ktrue, X, step, noise=True)
+    S = triplets(Ktrue, X, start, noise=True)
     Ks = [(Ktrue, Ktrue)]
     it = 0
     rel_err_nuc = float('inf')
@@ -87,7 +87,7 @@ def learn_metric(n, d, p, seed, step=5000, acc = .01, max_norm=1.):
                                                          maxits=500,
                                                          epsilon=1e-5,
                                                          regularization='norm_nuc',
-                                                         verbose=True)
+                                                         verbose=False)
             rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
         if rel_err_L12 > acc:
             Khat_L12, emp_loss, log_loss = computeKernel(X, S, d,
@@ -95,31 +95,32 @@ def learn_metric(n, d, p, seed, step=5000, acc = .01, max_norm=1.):
                                                          maxits=500,
                                                          epsilon=1e-5,
                                                          regularization='norm_L12',
-                                                         verbose=True)
+                                                         verbose=False)
             rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
 
         rel_err_list.append((rel_err_nuc, rel_err_L12))
         loss_list.append((loss_nuc, loss_L12))
-        print(("id:{}. Current relative error: {}, log_losses: {},"
+        print(("id:{}. Current relative error: ({:.6f}, {:.6f}), log_losses: ({:.6f}, {:.6f}), "
                "New test of {} samples. Dimension:{}. Sparsity:{}. Iteration: {}").format(id,
-                                                                                               (rel_err_nuc, rel_err_L12),
-                                                                                               (loss_nuc, loss_L12),
+                                                                                               rel_err_nuc, rel_err_L12,
+                                                                                               loss_nuc, loss_L12,
                                                                                                len(S), p, d, it))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
         
-    result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': step, 'step': step, 'X': X,
+    result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X,
               'rel_err_list': rel_err_list, 'loss_list': loss_list}
     return result
 
 
-def driver(n, d, p, step, avg=3, acc=0.01):
+def driver(n, d, p, step, start, avg=3, acc=0.01):
     seed = np.random.randint(1000)
     trials = client.map(learn_metric_helper, [(n[int(i / avg)],
                                                d[int(i / avg)],
                                                p[int(i / avg)],
                                                seed + i,
                                                step[int(i / avg)],
+                                               start[int(i / avg)],
                                                acc)
                                               for i in range(avg * len(d))])
     results = client.gather(trials)
@@ -128,23 +129,34 @@ def driver(n, d, p, step, avg=3, acc=0.01):
 
 
 if __name__ == '__main__':
-    d = [40]  # , 8, 10, 12, 14, 16, 18, 20]
-    step = [10000] * len(d)
-    p = [50] * len(d)
-    n = [60]
-    acc  = .1
-    avg = 1        # number of runs to average over
-    results = driver(n, d, p, step, avg=avg, acc = acc)
-    pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
-    #print(results)
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.subplot(131)
-    plt.imshow(results[0]['Ks'][0][0])
-    plt.subplot(132)
-    plt.imshow(results[0]['Ks'][-1][0])
-    plt.subplot(133)
-    plt.imshow(results[0]['Ks'][-1][1])
-    plt.show()
+    if sys.argv[1] == 'test':
+      d = [2,4,6,8]  # , 8, 10, 12, 14, 16, 18, 20]
+      step = [250] * len(d)
+      start = [250] * len(d)
+      p = [10] * len(d)
+      n = [15] * len(d)
+      acc  = .1
+      avg = 1        # number of runs to average over
+      results = driver(n, d, p, step, start, avg=avg, acc=acc)
 
-    # d=10, p=2
+    else:
+      d = [5]  # , 8, 10, 12, 14, 16, 18, 20]
+      step = [1000] * len(d)
+      start = [8000] * len(d)
+      p = [50] * len(d)
+      n = [60] * len(d)
+      acc  = .1
+      avg = 1        # number of runs to average over
+      results = driver(n, d, p, step, start, avg=avg, acc=acc)
+      pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
+
+      #print(results)
+      import matplotlib.pyplot as plt
+      plt.figure()
+      plt.subplot(131)
+      plt.imshow(results[0]['Ks'][0][0])
+      plt.subplot(132)
+      plt.imshow(results[0]['Ks'][-1][0])
+      plt.subplot(133)
+      plt.imshow(results[0]['Ks'][-1][1])
+      plt.show()

@@ -136,7 +136,8 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         if dif < epsilon or normG < epsilon*(1+log_loss_0) or alpha < epsilon:
             log_loss.append(log_loss_0)
             emp_loss.append(emp_loss_0)
-            print("Exiting at iterate %d because stopping condition satisfied" % t)
+            if verbose:
+                print("Exiting at iterate %d because stopping condition satisfied" % t)
             break
 
         # backtracking line search
