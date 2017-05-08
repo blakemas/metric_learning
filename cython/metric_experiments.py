@@ -9,16 +9,17 @@ import sys
 from collections import defaultdict
 import multiprocessing as mp
 import io
-
+from dask.distributed import Client
 #import msgpack
 #import msgpack_numpy as mn
 #mn.patch()
 
+client = Client('34.201.36.27:8786')
+client.upload_file('dist/utilsMetric-0.0.0-py2.7-macosx-10.9-x86_64.egg')
 
 from scipy.optimize import curve_fit
 from scipy.linalg import orth
 import matplotlib.pyplot as plt
-from dask.distributed import Client
 
 #sys.path.append('.')
 from utilsMetric import features, computeKernel, triplets, norm_nuc
@@ -105,8 +106,6 @@ def learn_metric(n, d, p, seed, step=5000, acc=0.1, max_norm=1.):
 
 
 def driver(n, d, p, step, avg=3, acc=0.1):
-    client = Client('54.175.3.238:8786')
-    #client.upload_file('dist/MetricLearning-0.0.0-py2.7-macosx-10.9-x86_64.egg')
     seed = np.random.randint(1000)
     trials = client.map(learn_metric_helper, [(n[int(i / avg)], d[int(i / avg)], p[int(i / avg)], seed + i, step[int(i / avg)], acc) for i in range(avg * len(d))])
     results = client.gather(trials)

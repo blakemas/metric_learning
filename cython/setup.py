@@ -10,7 +10,7 @@ except ImportError:
 import numpy as np
 
 setup(
-    name='MetricLearning',
+    name='utilsMetric',
     description='Ordinal Metric Learning',
     ext_modules=cythonize(['utilsMetric.pyx']),
     include_dirs=[np.get_include()]
