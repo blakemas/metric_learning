@@ -6,6 +6,7 @@ import sys
 from collections import defaultdict
 import multiprocessing as mp
 import io
+import cPickle as pickle
 from dask.distributed import Client
 
 client = Client()#'34.201.36.27:8786')
@@ -134,6 +135,7 @@ if __name__ == '__main__':
     acc  = .1
     avg = 1        # number of runs to average over
     results = driver(n, d, p, step, avg=avg, acc = acc)
+    pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
     #print(results)
     import matplotlib.pyplot as plt
     plt.figure()
