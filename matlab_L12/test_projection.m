@@ -1,18 +1,21 @@
-% make a matrix
-n = 10;
-% M = randn(n,n);
-% B = M*M';
+load data.mat
+B = sparse(double(Mtrue));
 
-B = diag(abs(randn(n,1)));
-L12(B)
-
-lam = 20;
+% B = diag(abs(randn(n,1)));
+L12(B);
 
 cvx_begin
-    variable A(n,n) symmetric semidefinite;
-
-    F = norm(A - B, 'fro');
-    minimize(F);
+%     lam = 5;
+    variable A(n,n);
+    
+    variable C(n,n);
+    for i=1:n
+        for j=1:n
+            C(i,j) == A(i,j) - B(i,j);
+        end
+    end
+    
+    minimize(norm(C, 'fro'));
     subject to
     L12_norm = 0;
     for i=1:n
@@ -23,5 +26,10 @@ cvx_end
 
 % L12 norm of CVX learned matrix
 L12(A)
+L12(Mproj)
+norm(Mproj - A, 'fro')
 
-norm(project_L12(B, lam) - A, 'fro')
+figure; 
+imagesc(A)
+figure;
+imagesc(Mproj)
