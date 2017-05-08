@@ -29,3 +29,6 @@ var/
 
 # blackbox stuff
 .experiments/
+
+# dask stuff
+cluster.yaml

@@ -15,7 +15,7 @@ from dask.distributed import Client
 #mn.patch()
 
 client = Client('34.201.36.27:8786')
-client.upload_file('dist/utilsMetric-0.0.0-py2.7-macosx-10.9-x86_64.egg')
+client.upload_file('dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 
 from scipy.optimize import curve_fit
 from scipy.linalg import orth
