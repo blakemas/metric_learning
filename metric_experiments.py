@@ -35,7 +35,7 @@ def sparse_case(n, d, p):
     Ktrue = np.eye(p)
     for i in range(d, p):
         Ktrue[i,i] = 0
-    X = np.random.randn(n, p) * 1/np.sqrt(d)
+    X = np.random.randn(n, p) * 1/d**.25
     return Ktrue, X
 
 # def dense_case(n, d, p):
@@ -127,10 +127,10 @@ def driver(n, d, p, step, avg=3, acc=0.01):
 
 
 if __name__ == '__main__':
-    d = [20]  # , 8, 10, 12, 14, 16, 18, 20]
+    d = [10]  # , 8, 10, 12, 14, 16, 18, 20]
     step = [500] * len(d)
-    p = [100] * len(d)
-    n = [150]
+    p = [20] * len(d)
+    n = [30]
     acc  = .05
     avg = 1        # number of runs to average over
     results = driver(n, d, p, step, avg=avg, acc = acc)
