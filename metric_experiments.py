@@ -127,10 +127,10 @@ def driver(n, d, p, step, avg=3, acc=0.01):
 
 
 if __name__ == '__main__':
-    d = [10]  # , 8, 10, 12, 14, 16, 18, 20]
+    d = [40]  # , 8, 10, 12, 14, 16, 18, 20]
     step = [500] * len(d)
-    p = [20] * len(d)
-    n = [30]
+    p = [50] * len(d)
+    n = [60]
     acc  = .05
     avg = 1        # number of runs to average over
     results = driver(n, d, p, step, avg=avg, acc = acc)

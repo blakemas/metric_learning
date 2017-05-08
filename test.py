@@ -25,21 +25,21 @@ S = triplets(Ktrue, X, num_samples, noise=True)
 
 ts = time.time()
 Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d, lam, 
-                                         maxits=100, 
-                                         epsilon=1e-3, 
+                                         maxits=250, 
+                                         epsilon=1e-5, 
                                          regularization='norm_L12', 
                                          verbose=True)
 print 'time naive gd:', time.time() - ts
 
-ts = time.time()
-Khat_L12, emp_loss, log_loss = computeKernelEpochSGD(X, S, d, lam,
-                                                 regularization='norm_L12', 
-                                                 a=100,
-                                                 maxits_sgd=1000000,
-                                                 maxits_gd=10, 
-                                                 epsilon=1e-3, 
-                                                 verbose=True)
-print 'time sgd:', time.time() - ts
+# ts = time.time()
+# Khat_L12, emp_loss, log_loss = computeKernelEpochSGD(X, S, d, lam,
+#                                                  regularization='norm_L12', 
+#                                                  a=100,
+#                                                  maxits_sgd=1000000,
+#                                                  maxits_gd=10, 
+#                                                  epsilon=1e-3, 
+#                                                  verbose=True)
+# print 'time sgd:', time.time() - ts
 
 
 # R_star = 0
@@ -93,12 +93,12 @@ print 'time sgd:', time.time() - ts
 # rel_err = np.linalg.norm(Ktrue - Khat, ord='fro')**2/np.linalg.norm(Ktrue, ord='fro')**2
 #print('Recovery error: ', rel_err)
 
-plt.figure(1)
-plt.subplot(121)
-plt.imshow(Khat_nuc, interpolation='none')
-plt.subplot(122)
-plt.imshow(Khat_L12, interpolation='none')
-plt.show()
+# plt.figure(1)
+# plt.subplot(121)
+# plt.imshow(Khat_nuc, interpolation='none')
+# plt.subplot(122)
+# plt.imshow(Khat_L12, interpolation='none')
+# plt.show()
 
 
 
