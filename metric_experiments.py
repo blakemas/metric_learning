@@ -31,7 +31,7 @@ def comparative_risk(R_star, K, X, pTrue):
     return (R_hat - R_star)/R_star, R_hat
 
 
-def sparse_case(n, p, d):
+def sparse_case(n, d, p):
     Ktrue = np.eye(p)
     for i in range(d, p):
         Ktrue[i,i] = 0
@@ -135,3 +135,12 @@ if __name__ == '__main__':
     avg = 1        # number of runs to average over
     results = driver(n, d, p, step, avg=avg, acc = acc)
     #print(results)
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.subplot(131)
+    plt.imshow(results[0]['Ks'][0][0])
+    plt.subplot(132)
+    plt.imshow(results[0]['Ks'][-1][0])
+    plt.subplot(133)
+    plt.imshow(results[0]['Ks'][-1][1])
+    plt.show()
