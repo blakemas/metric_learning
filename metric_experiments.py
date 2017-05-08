@@ -83,18 +83,18 @@ def learn_metric(n, d, p, seed, step=5000, acc = .01, max_norm=1.):
         if rel_err_nuc > acc:
             Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d,
                                                          norm_nuc(Ktrue),
-                                                         maxits=100,
+                                                         maxits=500,
                                                          epsilon=1e-5,
                                                          regularization='norm_nuc',
-                                                         verbose=False)
+                                                         verbose=True)
             rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
         if rel_err_L12 > acc:
             Khat_L12, emp_loss, log_loss = computeKernel(X, S, d,
                                                          norm_nuc(Ktrue),
-                                                         maxits=100,
+                                                         maxits=500,
                                                          epsilon=1e-5,
                                                          regularization='norm_L12',
-                                                         verbose=False)
+                                                         verbose=True)
             rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
 
         rel_err_list.append((rel_err_nuc, rel_err_L12))
@@ -127,11 +127,11 @@ def driver(n, d, p, step, avg=3, acc=0.01):
 
 
 if __name__ == '__main__':
-    d = [10]  # , 8, 10, 12, 14, 16, 18, 20]
-    step = [500] * len(d)
-    p = [20] * len(d)
-    n = [30]
-    acc  = .05
+    d = [40]  # , 8, 10, 12, 14, 16, 18, 20]
+    step = [10000] * len(d)
+    p = [50] * len(d)
+    n = [60]
+    acc  = .1
     avg = 1        # number of runs to average over
     results = driver(n, d, p, step, avg=avg, acc = acc)
     #print(results)
@@ -144,3 +144,5 @@ if __name__ == '__main__':
     plt.subplot(133)
     plt.imshow(results[0]['Ks'][-1][1])
     plt.show()
+
+    # d=10, p=2

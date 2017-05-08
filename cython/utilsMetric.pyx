@@ -76,7 +76,7 @@ def getLoss(K, M):
 
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                   regularization='L12', 
-                  double c1=1e-5, 
+                  double c1=1e-4, 
                   double rho=0.5, 
                   int maxits=100, 
                   double epsilon=1e-3, 
@@ -108,7 +108,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     cdef list log_loss, emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-    cdef int bounce = 10
+    cdef int bounce = 4
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
@@ -125,7 +125,6 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         K_old = K
         emp_loss_0, log_loss_0 = lossK(K_old, M)
         t += 1
-        alpha = 1.3 * alpha                                 # update step size
         G = fullGradient(K_old, M)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
         if regularization == 'norm_nuc':
@@ -154,7 +153,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             if inner_t > 10:
                 break
         alpha = 1.1*alpha
-        dif = np.linalg.norm(K - K_old, ord='fro')
+        dif = np.abs(log_loss_0 - log_loss_k)
         if verbose:
             print({'iter': t,
                    'emp_loss': emp_loss_k,
