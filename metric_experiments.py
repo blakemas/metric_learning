@@ -1,17 +1,19 @@
 from __future__ import division
 import numpy as np
-import json
-import uuid
-import sys
+import json, uuid, sys, io
 from collections import defaultdict
 import multiprocessing as mp
-import io
+from Queue import Queue
+import cPickle as pickle
 from dask.distributed import Client
+
+import msgpack
+import msgpack_numpy as mn
+mn.patch()
 
 client = Client()#'34.201.36.27:8786')
 #client.upload_file('dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 from scipy.linalg import orth
-
 from utilsMetric import computeKernel, triplets, norm_nuc
 
 
@@ -106,23 +108,32 @@ def learn_metric(n, d, p, seed, step=5000, start=5000, acc=.01):
                                                                                                len(S), p, d, it))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
-        
     result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X,
               'rel_err_list': rel_err_list, 'loss_list': loss_list}
     return result
 
 
-def driver(n, d, p, step, start, avg=3, acc=0.01):
+def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
     seed = np.random.randint(1000)
-    trials = client.map(learn_metric_helper, [(n[int(i / avg)],
-                                               d[int(i / avg)],
-                                               p[int(i / avg)],
-                                               seed + i,
-                                               step[int(i / avg)],
-                                               start[int(i / avg)],
-                                               acc)
-                                              for i in range(avg * len(d))])
-    results = client.gather(trials)
+    print(seed)
+    input_q = Queue()
+    inputs = [(n[int(i / avg)],
+               d[int(i / avg)],
+               p[int(i / avg)],
+               seed + i,
+               step[int(i / avg)],
+               start[int(i / avg)],
+               acc)
+              for i in range(avg * len(d))]
+    remote_q = client.scatter(input_q)
+    result_q = client.map(learn_metric_helper, remote_q)
+    gather_q = client.gather(result_q)
+    map(input_q.put, inputs)
+    stream = io.open(stream_name,'wb', buffering=0)
+    while True:
+        data  = gather_q.get()
+        stream.write(msgpack.packb(data))
+        print('finished task: n-{}, d-{}, p-{}'.format(data['n'], data['d'], data['p']))
     return results
 
 
@@ -134,21 +145,21 @@ if __name__ == '__main__':
       start = [250] * len(d)
       p = [10] * len(d)
       n = [15] * len(d)
-      acc  = .1
-      avg = 4        # number of runs to average over
-      results = driver(n, d, p, step, start, avg=avg, acc=acc)
-
+      acc  = .9
+      avg = 1        # number of runs to average over
+      results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='test-dump.dat')
+    
     else:
-      d = [40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
-      step = [1000] * len(d)
-      # start = [5000] * len(d)
-      start = [8000,9000]
+      d = [5]  # , 8, 10, 12, 14, 16, 18, 20]
+      step = [500] * len(d)
+      start = [1000] * len(d)
       p = [50] * len(d)
       n = [60] * len(d)
       acc  = .1
-      avg = 4        # number of runs to average over
-      results = driver(n, d, p, step, start, avg=avg, acc=acc)
-      #print(results)
+      avg = 1        # number of runs to average over
+      results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='results-n{}-d{}-p{}-acc{}-avg{}.dat')
+      pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
+      
       import matplotlib.pyplot as plt
       plt.figure()
       plt.subplot(131)
@@ -158,5 +169,3 @@ if __name__ == '__main__':
       plt.subplot(133)
       plt.imshow(results[0]['Ks'][-1][1])
       plt.show()
-
-      # d=10, p=2
