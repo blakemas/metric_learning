@@ -135,17 +135,18 @@ if __name__ == '__main__':
       p = [10] * len(d)
       n = [15] * len(d)
       acc  = .1
-      avg = 1        # number of runs to average over
+      avg = 4        # number of runs to average over
       results = driver(n, d, p, step, start, avg=avg, acc=acc)
 
     else:
-      d = [5]  # , 8, 10, 12, 14, 16, 18, 20]
+      d = [40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
       step = [1000] * len(d)
-      start = [8000] * len(d)
+      # start = [5000] * len(d)
+      start = [8000,9000]
       p = [50] * len(d)
       n = [60] * len(d)
       acc  = .1
-      avg = 1        # number of runs to average over
+      avg = 4        # number of runs to average over
       results = driver(n, d, p, step, start, avg=avg, acc=acc)
       #print(results)
       import matplotlib.pyplot as plt
