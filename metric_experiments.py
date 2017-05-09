@@ -140,23 +140,26 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-      d = [2,4,6,8]  # , 8, 10, 12, 14, 16, 18, 20]
-      step = [250] * len(d)
-      start = [250] * len(d)
-      p = [10] * len(d)
-      n = [15] * len(d)
-      acc  = .9
-      avg = 1        # number of runs to average over
-      results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='test-dump.dat')
-    
+        d = [2, 4, 6, 8]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [250] * len(d)
+        start = [250] * len(d)
+        p = [10] * len(d)
+        n = [15] * len(d)
+        acc = .9
+        avg = 1        # number of runs to average over
+        results = driver(n, d, p, step,
+                         start, avg=avg, acc=acc, stream_name='test-dump.dat')    
     else:
-      d = [5, 10, 15, 20, 25, 30, 35, 40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
-      step = [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
-      start = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
-      p = [50] * len(d)
-      n = [60] * len(d)
-      acc  = .1
-      avg = 20        # number of runs to average over
-      results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='results-n{}-d{}-p{}-acc{}-avg{}.dat')
-      pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
-      
+        d = [5, 10, 15, 20, 25, 30, 35, 40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
+        start = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
+        p = [50] * len(d)
+        n = [60] * len(d)
+        acc = .1
+        avg = 20        # number of runs to average over
+        results = driver(n, d, p, step,
+                         start, avg=avg, acc=acc,
+                         stream_name='sparse-results-n{}-d{}-p{}-acc{}-avg{}.dat'.format(n, d, p, acc, avg))
+        pickle.dump(results,
+                    open('sparse-results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
+        
