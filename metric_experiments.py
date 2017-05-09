@@ -11,8 +11,8 @@ import msgpack
 import msgpack_numpy as mn
 mn.patch()
 
-client = Client()#'34.201.36.27:8786')
-#client.upload_file('dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
+client = Client('54.210.213.191:8786')
+client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 from scipy.linalg import orth
 from utilsMetric import computeKernel, triplets, norm_nuc
 
