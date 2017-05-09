@@ -150,22 +150,13 @@ if __name__ == '__main__':
       results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='test-dump.dat')
     
     else:
-      d = [5]  # , 8, 10, 12, 14, 16, 18, 20]
-      step = [500] * len(d)
-      start = [1000] * len(d)
+      d = [5, 10, 15, 20, 25, 30, 35, 40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
+      step = [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
+      start = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
       p = [50] * len(d)
       n = [60] * len(d)
       acc  = .1
-      avg = 1        # number of runs to average over
+      avg = 20        # number of runs to average over
       results = driver(n, d, p, step, start, avg=avg, acc=acc, stream_name='results-n{}-d{}-p{}-acc{}-avg{}.dat')
       pickle.dump(results, open('results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
       
-      import matplotlib.pyplot as plt
-      plt.figure()
-      plt.subplot(131)
-      plt.imshow(results[0]['Ks'][0][0])
-      plt.subplot(132)
-      plt.imshow(results[0]['Ks'][-1][0])
-      plt.subplot(133)
-      plt.imshow(results[0]['Ks'][-1][1])
-      plt.show()
