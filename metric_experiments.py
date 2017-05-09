@@ -130,10 +130,14 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
     gather_q = client.gather(result_q)
     map(input_q.put, inputs)
     stream = io.open(stream_name,'wb', buffering=0)
-    while True:
+    total = 0
+    results  = []
+    while total < avg*len(d):
         data  = gather_q.get()
+        total += 1
         stream.write(msgpack.packb(data))
         print('finished task: n-{}, d-{}, p-{}'.format(data['n'], data['d'], data['p']))
+        results.append(data)
     return results
 
 
@@ -149,6 +153,9 @@ if __name__ == '__main__':
         avg = 1        # number of runs to average over
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
+        pickle.dump(results,
+                    open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
+        
     else:
         d = [5, 10, 15, 20, 25, 30, 35, 40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
         step = [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000]

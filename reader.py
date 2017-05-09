@@ -14,5 +14,7 @@ def reader_process(filename):
     return data
 
 if __name__=='__main__':
-    import sys
+    import sys, io, msgpack
+    import msgpack_numpy as mp
+    mp.patch()
     print reader_process(sys.argv[1])
