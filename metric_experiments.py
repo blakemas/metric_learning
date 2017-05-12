@@ -14,7 +14,7 @@ mn.patch()
 client = Client('54.210.213.191:8786')
 client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 from scipy.linalg import orth
-from utilsMetric import computeKernel, triplets, norm_nuc
+from utilsMetric import computeKernel, triplets, norm_nuc, norm_L12
 
 
 def comparative_risk(R_star, K, X, pTrue):
@@ -40,19 +40,20 @@ def sparse_case(n, d, p):
     X = np.random.randn(n, p) * 1/d**.25
     return Ktrue, X
 
-# def dense_case(n, d, p):
-#     U = orth(np.random.randn(p, d))
-#     Ktrue = np.dot(U, U.T)
-#     X = features(n, p, scale=d**.25)
-#     return Ktrue, X
-
+def dense_case(n, d, p):
+    U = orth(np.random.randn(p, d))
+    Ktrue = np.dot(U, U.T)
+    X = np.random.randn(n, p) * 1/d**.25
+    return Ktrue, X
+    
 def learn_metric_helper(args):
     return learn_metric(*args)
 
-def learn_metric(n, d, p, seed, step=5000, start=5000, acc=.01):
+def learn_metric(args):
+    n, d, p, seed, step, start, acc = args
     id = np.random.randint(1000)
     np.random.seed(seed)
-    Ktrue, X = sparse_case(n, d, p)
+    Ktrue, X = dense_case(n, d, p)
 
     # Compute the true risk
     total = 0
@@ -92,7 +93,7 @@ def learn_metric(n, d, p, seed, step=5000, start=5000, acc=.01):
             rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
         if rel_err_L12 > acc:
             Khat_L12, emp_loss, log_loss = computeKernel(X, S, d,
-                                                         norm_nuc(Ktrue),
+                                                         norm_L12(Ktrue),
                                                          maxits=500,
                                                          epsilon=1e-5,
                                                          regularization='norm_L12',
@@ -126,7 +127,7 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
                acc)
               for i in range(avg * len(d))]
     remote_q = client.scatter(input_q)
-    result_q = client.map(learn_metric_helper, remote_q)
+    result_q = client.map(learn_metric, remote_q)
     gather_q = client.gather(result_q)
     map(input_q.put, inputs)
     stream = io.open(stream_name,'wb', buffering=0)
@@ -157,16 +158,16 @@ if __name__ == '__main__':
                     open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
         
     else:
-        d = [5, 10, 15, 20, 25, 30, 35, 40, 45]  # , 8, 10, 12, 14, 16, 18, 20]
-        step = [500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
-        start = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
-        p = [50] * len(d)
+        d = [3, 3, 3, 3, 3, 3, 3, 3, 3]  
+        step = [100, 100, 250, 250, 500, 500, 500, 500, 500]
+        start = [100, 250, 500, 750, 1000, 1500, 2000, 2500, 2500]
+        p = [10, 15, 20, 25, 30, 35, 40, 45, 50]
         n = [60] * len(d)
         acc = .1
         avg = 20        # number of runs to average over
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc,
-                         stream_name='sparse-results-n{}-d{}-p{}-acc{}-avg{}.dat'.format(n, d, p, acc, avg))
+                         stream_name='dense-results-n{}-d{}-p{}-acc{}-avg{}.dat'.format(n, d, p, acc, avg))
         pickle.dump(results,
-                    open('sparse-results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
+                    open('dense-results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
         
