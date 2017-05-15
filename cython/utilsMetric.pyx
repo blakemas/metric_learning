@@ -76,10 +76,10 @@ def getLoss(K, M):
 
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                   regularization='L12', 
-                  double c1=1e-4, 
-                  double rho=0.5, 
+                  double c1=.1, 
+                  double rho=0.7, 
                   int maxits=100, 
-                  double epsilon=1e-3, 
+                  double epsilon=1e-5, 
                   verbose=False,
                   Kstart = None):
     """
@@ -108,7 +108,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     cdef list log_loss, emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-    cdef int bounce = 4
+    cdef int bounce = 10
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
@@ -117,7 +117,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     else:
         K = Kstart
     t = 0
-    alpha = 10.
+    alpha = 4.
     log_loss = []
     emp_loss = []
 
@@ -130,7 +130,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         if regularization == 'norm_nuc':
             K = project_nucNorm(K_old - alpha * G, lam)
         elif regularization == 'norm_L12':
-            K = alternating_projection(K_old - alpha * G, lam, bounce)
+            K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
 
         # stopping criteria
         if dif < epsilon or normG < epsilon*(1+log_loss_0) or alpha < epsilon:
@@ -148,10 +148,10 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             if regularization == 'norm_nuc':
                 K = project_nucNorm(K_old - alpha * G, lam)
             elif regularization == 'norm_L12':
-                K = alternating_projection(K_old - alpha * G, lam, bounce)
+                K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
             emp_loss_k, log_loss_k = lossK(K, M)
             inner_t += 1
-            if inner_t > 10:
+            if inner_t > 50:
                 break
         alpha = 1.1*alpha
         dif = np.abs(log_loss_0 - log_loss_k)
@@ -291,8 +291,43 @@ cpdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection(np.ndarray[DTYPE
     Project onto the L12 ball of radius tau intersect the PSD cone via alternating projection
     """
     for _ in range(bounce):
-        K = projectPSD(project_L12(K, tau))
+        K = .5*(projectPSD(K)+project_L12(K, tau))
     return K
+
+cpdef inline np.ndarray[DTYPE_t, ndim=2] alternating_projection_dykstra(np.ndarray[DTYPE_t, ndim=2] K, double tau, bounce):
+    """
+    Project onto the L12 ball of radius tau intersect the PSD cone via alternating projection
+    """
+    K = K.copy()
+    n = K.shape[1]
+    cdef np.ndarray[DTYPE_t, ndim=2] p,q,y
+    p = np.zeros((n,n))
+    q = np.zeros((n,n))
+    for _ in range(bounce):
+        y = projectPSD(K+p)
+        p = K + p-y
+        K = projectL12Symmetric(y+q, tau, 10)
+        q = y + q - K
+        #K = (K+K.T)/2
+    return K
+
+
+cpdef inline np.ndarray[DTYPE_t, ndim=2] projectL12Symmetric(np.ndarray[DTYPE_t, ndim=2] K, double tau, bounce):
+    """
+    Project onto the L12 ball of radius tau intersect the PSD cone via alternating projection
+    """
+    K = K.copy()
+    n = K.shape[1]
+    cdef np.ndarray[DTYPE_t, ndim=2] p,q,y
+    p = np.zeros((n,n))
+    q = np.zeros((n,n))
+    for _ in range(bounce):
+        y = project_L12(K+p, tau)
+        p = K + p-y
+        K = ((y+q)+(y+q).T)/2
+        q = y + q - K
+    return K
+
 
 cpdef project_nucNorm(M, R):
     '''

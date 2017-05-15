@@ -11,8 +11,8 @@ import msgpack
 import msgpack_numpy as mn
 mn.patch()
 
-client = Client('54.210.213.191:8786')
-client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
+client = Client()
+#client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 from scipy.linalg import orth
 from utilsMetric import computeKernel, triplets, norm_nuc, norm_L12
 
@@ -45,7 +45,19 @@ def dense_case(n, d, p):
     Ktrue = np.dot(U, U.T)
     X = np.random.randn(n, p) * 1/d**.25
     return Ktrue, X
-    
+
+def row_sparse_case(n, d, p):
+    subK = np.random.randn(d, d)*p**.5/d**.75
+    subK = np.dot(subK.T, subK)
+    inds = np.arange(p)
+    np.random.shuffle(inds)
+    inds = inds[:d]             # get d random indicies
+    K = np.zeros((p, p))
+    K[[[i] for i in inds], inds] = subK
+
+    X = np.random.randn(n, p) * 1/p**.5
+    return K, X
+
 def learn_metric_helper(args):
     return learn_metric(*args)
 
@@ -53,7 +65,7 @@ def learn_metric(args):
     n, d, p, seed, step, start, acc = args
     id = np.random.randint(1000)
     np.random.seed(seed)
-    Ktrue, X = dense_case(n, d, p)
+    Ktrue, X = row_sparse_case(n, d, p)
 
     # Compute the true risk
     total = 0
@@ -73,44 +85,50 @@ def learn_metric(args):
     print('id:{}, true Bayes error: {}, p:{}, d:{}'.format(id, R_star, p, d))
 
     # List of relative errors per iteration
-    rel_err_list = []
+    pred_err_list = []
     loss_list = []
+    rec_err_list = []
     S = triplets(Ktrue, X, start, noise=True)
     Ks = [(Ktrue, Ktrue)]
     it = 0
-    rel_err_nuc = float('inf')
-    rel_err_L12 = float('inf')
+    pred_err_nuc = float('inf')
+    pred_err_L12 = float('inf')
 
-    while max(rel_err_L12, rel_err_nuc) > acc:
+    rec_err_nuc = float('inf')
+    rec_err_L12 = float('inf')
+    while max(pred_err_L12, pred_err_nuc) > acc:
         it += 1
-        if rel_err_nuc > acc:
+        if pred_err_nuc > acc:
             Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d,
                                                          norm_nuc(Ktrue),
-                                                         maxits=500,
-                                                         epsilon=1e-5,
+                                                         maxits=1,
+                                                         epsilon=1e-6,
                                                          regularization='norm_nuc',
-                                                         verbose=False)
-            rel_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
-        if rel_err_L12 > acc:
+                                                         verbose=True)
+            pred_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
+            rec_err_nuc = np.linalg.norm(Khat_nuc-Ktrue,'fro')**2/np.linalg.norm(Ktrue,'fro')**2
+        if pred_err_L12 > acc:
             Khat_L12, emp_loss, log_loss = computeKernel(X, S, d,
                                                          norm_L12(Ktrue),
                                                          maxits=500,
-                                                         epsilon=1e-5,
+                                                         epsilon=1e-6,
                                                          regularization='norm_L12',
-                                                         verbose=False)
-            rel_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
-
-        rel_err_list.append((rel_err_nuc, rel_err_L12))
+                                                         verbose=True)
+            pred_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
+            rec_err_L12 = np.linalg.norm(Khat_L12-Ktrue,'fro')**2/np.linalg.norm(Ktrue,'fro')**2
+        pred_err_list.append((pred_err_nuc, pred_err_L12))
+        rec_err_list.append((rec_err_nuc, rec_err_L12))
         loss_list.append((loss_nuc, loss_L12))
-        print(("id:{}. Current relative error: ({:.6f}, {:.6f}), log_losses: ({:.6f}, {:.6f}), "
+        print(("id:{}. Current prediction error: ({:.6f}, {:.6f}), Current recovery error: ({:.6f}, {:.6f}), log_losses: ({:.6f}, {:.6f}), "
                "New test of {} samples. Dimension:{}. Sparsity:{}. Iteration: {}").format(id,
-                                                                                               rel_err_nuc, rel_err_L12,
-                                                                                               loss_nuc, loss_L12,
-                                                                                               len(S), p, d, it))
+                                                                                          pred_err_nuc, pred_err_L12,
+                                                                                          rec_err_nuc, rec_err_L12,
+                                                                                          loss_nuc, loss_L12,
+                                                                                          len(S), p, d, it))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
-    result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X,
-              'rel_err_list': rel_err_list, 'loss_list': loss_list}
+    result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'pred_err_list':pred_err_list,
+              'rec_err_list': rec_err_list, 'loss_list': loss_list}
     return result
 
 
@@ -145,12 +163,12 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-        d = [2, 4, 6, 8]  # , 8, 10, 12, 14, 16, 18, 20]
-        step = [250] * len(d)
-        start = [250] * len(d)
-        p = [10] * len(d)
-        n = [15] * len(d)
-        acc = .9
+        d = [4]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [50000] * len(d)
+        start = [50000] * len(d)
+        p = [15] * len(d)
+        n = [17] * len(d)
+        acc = .01
         avg = 1        # number of runs to average over
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
