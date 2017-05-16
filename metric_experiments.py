@@ -65,7 +65,7 @@ def learn_metric(args):
     n, d, p, seed, step, start, acc = args
     id = np.random.randint(1000)
     np.random.seed(seed)
-    Ktrue, X = row_sparse_case(n, d, p)
+    Ktrue, X = dense_case(n, d, p)
 
     # Compute the true risk
     total = 0
@@ -82,7 +82,6 @@ def learn_metric(args):
                     R_star += -pp * np.log(pp)
                     total += 1
     R_star = R_star / total
-    print('id:{}, true Bayes error: {}, p:{}, d:{}'.format(id, R_star, p, d))
 
     # List of relative errors per iteration
     pred_err_list = []
@@ -96,13 +95,16 @@ def learn_metric(args):
 
     rec_err_nuc = float('inf')
     rec_err_L12 = float('inf')
+
+    print('id:{}, true Bayes error: {}, p:{}, d:{}, |S|:{}'.format(id, R_star, p, d, len(S)))
     while max(pred_err_L12, pred_err_nuc) > acc:
         it += 1
         if pred_err_nuc > acc:
             Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d,
                                                          norm_nuc(Ktrue),
-                                                         maxits=1,
+                                                         maxits=500,
                                                          epsilon=1e-6,
+                                                         c1 = 1e-4,
                                                          regularization='norm_nuc',
                                                          verbose=True)
             pred_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
@@ -112,6 +114,7 @@ def learn_metric(args):
                                                          norm_L12(Ktrue),
                                                          maxits=500,
                                                          epsilon=1e-6,
+                                                         c1 = 1e-4,
                                                          regularization='norm_L12',
                                                          verbose=True)
             pred_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
@@ -124,7 +127,7 @@ def learn_metric(args):
                                                                                           pred_err_nuc, pred_err_L12,
                                                                                           rec_err_nuc, rec_err_L12,
                                                                                           loss_nuc, loss_L12,
-                                                                                          len(S), p, d, it))
+                                                                                          len(S)+step, p, d, it))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
     result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'pred_err_list':pred_err_list,
@@ -163,17 +166,16 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-        d = [4]  # , 8, 10, 12, 14, 16, 18, 20]
-        step = [50000] * len(d)
-        start = [50000] * len(d)
-        p = [15] * len(d)
-        n = [17] * len(d)
+        d = [35]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [5000] * len(d)
+        start = [7000] * len(d)
+        p = [50] * len(d)
+        n = [55] * len(d)
         acc = .01
         avg = 1        # number of runs to average over
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
-        pickle.dump(results,
-                    open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
+        pickle.dump(results, open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
         
     else:
         d = [3, 3, 3, 3, 3, 3, 3, 3, 3]  
