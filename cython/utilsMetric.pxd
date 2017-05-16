@@ -164,13 +164,6 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2]
     for i,t in enumerate(S):
         G += partialGradientK(K, M[i], XKX, t)
     return G / num_t
-    # cdef np.ndarray[DTYPE_t, ndim=2] G
-    # cdef int num_t = M.shape[0]
-    # cdef int p =
-    # # XKX = np.dot(X, np.dot(K, X.T))
-    # G = np.zeros((K.shape[0], K.shape[1]))
-    # for i,t in enumerate(S):
-    #     G += partialGradientK(K, M[i], XKX, t)
-    # return G / num_t
+
 
 
