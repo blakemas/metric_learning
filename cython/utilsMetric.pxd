@@ -85,11 +85,19 @@ cdef inline lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M):
     return emp_loss / num_t, log_loss / num_t
 
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline double tripletScoreGradient(np.ndarray[DTYPE_t, ndim=2] XKX, t):
+    """
+    Compute the score of a triplet = <K, M_t> = trace(M_t @ K)
+    """
+    i,j,k = t
+    return XKX[k,k] - XKX[j,j]-2*(XKX[i,k]- XKX[i,j]) 
+    # return np.trace(np.dot(M_t, K))
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline np.ndarray[DTYPE_t, ndim=2] partialGradientK(
-                            np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] M_t):
+cdef inline np.ndarray[DTYPE_t, ndim=2] partialGradientK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] M_t, np.ndarray[DTYPE_t, ndim=2] XKX, t):
     """
     Compute partial gradient from triplet q, on kernel estimate K 
     with feature vectors X. For triplet i,j,k = q, 
@@ -109,11 +117,11 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] partialGradientK(
     """
     # cdef double score  = np.trace(np.dot(M_t, K))
     # tripletScoreK(K, M_t)
-    return -1. / (1. + c_exp(tripletScoreK(K, M_t))) * M_t.T
+    return -1. / (1. + c_exp(tripletScoreGradient(XKX, t))) * M_t.T
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M):
+cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M, np.ndarray[DTYPE_t, ndim=2] X, S):
     """
     See partial gradient code for specifics. Computes full gradient for set of tripets S.
     The full gradient is equal to the sum of the partials. 
@@ -129,11 +137,12 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2]
     Usage:
     G = partialGradient(K,X,q)
     """
-    cdef np.ndarray[DTYPE_t, ndim=2] G
+    cdef np.ndarray[DTYPE_t, ndim=2] G, XKX
     cdef int num_t = M.shape[0]
+    XKX = np.dot(X, np.dot(K, X.T))
     G = np.zeros((K.shape[0], K.shape[1]))
-    for t in range(num_t):
-        G += partialGradientK(K, M[t])
+    for i,t in enumerate(S):
+        G += partialGradientK(K, M[i], XKX, t)
     return G / num_t
 
 

@@ -125,7 +125,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
         K_old = K
         emp_loss_0, log_loss_0 = lossK(K_old, M)
         t += 1
-        G = fullGradient(K_old, M)
+        G = fullGradient(K_old, M, X, S)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
         if regularization == 'norm_nuc':
             K = project_nucNorm(K_old - alpha * G, lam)
@@ -168,66 +168,66 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     return K, emp_loss, log_loss
 
 
-def computeKernelEpochSGD(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
-                          regularization='L12', 
-                          double a = 1,
-                          double c1=1e-5, 
-                          double rho=0.5, 
-                          int maxits_sgd=100,
-                          int maxits_gd=30,
-                          double epsilon=1e-3, 
-                          verbose=False):
+# def computeKernelEpochSGD(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
+#                           regularization='L12', 
+#                           double a = 1,
+#                           double c1=1e-5, 
+#                           double rho=0.5, 
+#                           int maxits_sgd=100,
+#                           int maxits_gd=30,
+#                           double epsilon=1e-3, 
+#                           verbose=False):
     
-    cdef double score, outer_loss
-    cdef int m = len(S)
-    cdef int epoch_length = len(S)    
-    cdef int t = 0
-    cdef int t_e = 0
-    cdef double rel_max_grad = float('inf')
-    cdef int p = X.shape[1]
-    cdef int n = X.shape[0]
-    cdef np.ndarray[DTYPE_t, ndim=2] K, G
-    cdef int bounce = 10
-    K = kernel(p, p, 1, False)
-    cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
+#     cdef double score, outer_loss
+#     cdef int m = len(S)
+#     cdef int epoch_length = len(S)    
+#     cdef int t = 0
+#     cdef int t_e = 0
+#     cdef double rel_max_grad = float('inf')
+#     cdef int p = X.shape[1]
+#     cdef int n = X.shape[0]
+#     cdef np.ndarray[DTYPE_t, ndim=2] K, G
+#     cdef int bounce = 10
+#     K = kernel(p, p, 1, False)
+#     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
     
-    while t < maxits_sgd:
-        t += 1
-        t_e += 1
-        # check epoch conditions, udpate step size
-        if t_e % epoch_length == 0:
-            a = a*(1+a)**-1
-            epoch_length = 2*epoch_length
-            t_e = 0
-            if regularization == 'norm_nuc':
-                K = project_nucNorm(K, lam)
-            elif regularization == 'norm_L12':
-                K = alternating_projection(K, lam, bounce)
+#     while t < maxits_sgd:
+#         t += 1
+#         t_e += 1
+#         # check epoch conditions, udpate step size
+#         if t_e % epoch_length == 0:
+#             a = a*(1+a)**-1
+#             epoch_length = 2*epoch_length
+#             t_e = 0
+#             if regularization == 'norm_nuc':
+#                 K = project_nucNorm(K, lam)
+#             elif regularization == 'norm_L12':
+#                 K = alternating_projection(K, lam, bounce)
 
-            if epsilon>0 or verbose:
-                # get losses
-                emp_loss, log_loss = lossK(K, M)
-                # get gradient and check stopping-time statistics
-                G = fullGradient(K, M)
-                normG = np.linalg.norm(G, ord='fro')
-                print({'iter':t,
-                       'epoch':t_e,
-                       'emp_loss':emp_loss,
-                       'log_loss':log_loss,
-                       'G_norm':normG,
-                       'alpha':a})
-                if rel_max_grad < epsilon:
-                    break
+#             if epsilon>0 or verbose:
+#                 # get losses
+#                 emp_loss, log_loss = lossK(K, M)
+#                 # get gradient and check stopping-time statistics
+#                 G = fullGradient(K, M)
+#                 normG = np.linalg.norm(G, ord='fro')
+#                 print({'iter':t,
+#                        'epoch':t_e,
+#                        'emp_loss':emp_loss,
+#                        'log_loss':log_loss,
+#                        'G_norm':normG,
+#                        'alpha':a})
+#                 if rel_max_grad < epsilon:
+#                     break
                             
-        K = K - a*partialGradientK(K, M[np.random.randint(m)])
-    return computeKernel(X, S, d, lam,
-                         regularization, 
-                         c1, 
-                         rho, 
-                         maxits_gd, 
-                         epsilon, 
-                         verbose,
-                         Kstart = K)
+#         K = K - a*partialGradientK(K, M[np.random.randint(m)])
+#     return computeKernel(X, S, d, lam,
+#                          regularization, 
+#                          c1, 
+#                          rho, 
+#                          maxits_gd, 
+#                          epsilon, 
+#                          verbose,
+#                          Kstart = K)
 
 def euclidean_proj_l1ball(v, s=1):
     assert s > 0, "Radius s must be strictly positive (%d <= 0)" % s
