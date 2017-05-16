@@ -168,9 +168,9 @@ if __name__ == '__main__':
     if sys.argv[1] == 'test':
         d = [35]  # , 8, 10, 12, 14, 16, 18, 20]
         step = [5000] * len(d)
-        start = [7000] * len(d)
+        start = [10000] * len(d)
         p = [50] * len(d)
-        n = [55] * len(d)
+        n = [60] * len(d)
         acc = .01
         avg = 1        # number of runs to average over
         results = driver(n, d, p, step,
