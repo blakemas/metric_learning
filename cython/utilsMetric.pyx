@@ -70,8 +70,8 @@ def norm_nuc(A):
 def getScore(K, M_t):
     return tripletScoreK(K, M_t)
 
-def getLoss(K, M):
-    return lossK(K, M)
+def getLoss(K, X, S):
+    return lossK(K, X, S)
 
 
 def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
@@ -120,20 +120,25 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     alpha = 4.
     log_loss = []
     emp_loss = []
+    grad_time = 0
 
     while t < maxits:
+        # ts = time.time()
         K_old = K
-        emp_loss_0, log_loss_0 = lossK(K_old, M)
+        # time_loss = time.time()
+        emp_loss_0, log_loss_0 = lossK(K_old, X, S)
+        # print(time.time() - time_loss, ' loss seconds')
         t += 1
-        G = fullGradient(K_old, M, X, S)
+        G = fullGradient(K, X, M, S)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
+        # time_proj = time.time()
         if regularization == 'norm_nuc':
             K = project_nucNorm(K_old - alpha * G, lam)
         elif regularization == 'norm_L12':
             K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
-
+        # print(time.time() - time_proj, ' projection seconds')
         # stopping criteria
-        if dif < epsilon or normG < epsilon*(1+log_loss_0) or alpha < epsilon:
+        if dif < epsilon or normG < epsilon*(1.+log_loss_0) or alpha < epsilon:
             log_loss.append(log_loss_0)
             emp_loss.append(emp_loss_0)
             if verbose:
@@ -141,19 +146,21 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             break
 
         # backtracking line search
-        emp_loss_k, log_loss_k = lossK(K, M)
+        emp_loss_k, log_loss_k = lossK(K, X, S)
         inner_t = 0         # number of steps back
+        # time_back = time.time()
         while log_loss_k > log_loss_0 - c1 * alpha * normG**2:
             alpha = alpha * rho
             if regularization == 'norm_nuc':
                 K = project_nucNorm(K_old - alpha * G, lam)
             elif regularization == 'norm_L12':
                 K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
-            emp_loss_k, log_loss_k = lossK(K, M)
+            emp_loss_k, log_loss_k = lossK(K, X, S)
             inner_t += 1
             if inner_t > 50:
                 break
         alpha = 1.1*alpha
+        # print(time.time() - time_back, ' backtrack seconds')
         dif = np.abs(log_loss_0 - log_loss_k)
         if verbose:
             print({'iter': t,
@@ -165,6 +172,11 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                    'alpha': alpha})
         log_loss.append(log_loss_k)
         emp_loss.append(emp_loss_k)
+    #     dur = time.time() - ts
+    #     print(dur, ' seconds total')
+    #     grad_time += dur
+
+    # print('average fast gradient time: ', grad_time/t)
     return K, emp_loss, log_loss
 
 
