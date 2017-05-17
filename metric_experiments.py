@@ -7,6 +7,8 @@ from Queue import Queue
 import cPickle as pickle
 from dask.distributed import Client
 
+import matplotlib.pyplot as plt
+
 import msgpack
 import msgpack_numpy as mn
 mn.patch()
@@ -66,7 +68,6 @@ def learn_metric(args):
     id = np.random.randint(1000)
     np.random.seed(seed)
     Ktrue, X = dense_case(n, d, p)
-    print('norm_nuc', norm_nuc(Ktrue), 'norm_L12', norm_L12(Ktrue))
     # Compute the true risk
     total = 0
     R_star = 0
@@ -167,13 +168,18 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-        d = [50]  # , 8, 10, 12, 14, 16, 18, 20]
-        step = [5000] * len(d)
-        start = [10000] * len(d)
-        p = [100] * len(d)
-        n = [120] * len(d)
+        d = [25]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [50000] * len(d)
+        start = [100000] * len(d)
+        p = [50] * len(d)
+        n = [50] * len(d)
         acc = .01
         avg = 1        # number of runs to average over
+        Ktrue, X = dense_case(n[0],d[0],p[0])
+        plt.imshow(Ktrue, interpolation='none')
+        plt.show()
+        print('norm_nuc', norm_nuc(Ktrue), 'norm_L12', norm_L12(Ktrue))
+
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
         pickle.dump(results, open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
