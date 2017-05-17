@@ -66,7 +66,7 @@ def learn_metric(args):
     id = np.random.randint(1000)
     np.random.seed(seed)
     Ktrue, X = dense_case(n, d, p)
-
+    print('norm_nuc', norm_nuc(Ktrue), 'norm_L12', norm_L12(Ktrue))
     # Compute the true risk
     total = 0
     R_star = 0
@@ -128,6 +128,7 @@ def learn_metric(args):
                                                                                           rec_err_nuc, rec_err_L12,
                                                                                           loss_nuc, loss_L12,
                                                                                           len(S)+step, p, d, it))
+        print('After learning: norm_nuc', norm_nuc(Khat_nuc), 'norm_L12', norm_L12(Khat_L12))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
     result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'pred_err_list':pred_err_list,
@@ -166,11 +167,11 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-        d = [35]  # , 8, 10, 12, 14, 16, 18, 20]
+        d = [50]  # , 8, 10, 12, 14, 16, 18, 20]
         step = [5000] * len(d)
         start = [10000] * len(d)
-        p = [50] * len(d)
-        n = [60] * len(d)
+        p = [100] * len(d)
+        n = [120] * len(d)
         acc = .01
         avg = 1        # number of runs to average over
         results = driver(n, d, p, step,

@@ -64,26 +64,46 @@ cdef inline double queryScoreK(np.ndarray[DTYPE_t, ndim=2]K, np.ndarray[DTYPE_t,
               - np.outer(X[j], X[j]) + np.outer(X[k], X[k]))
     return tripletScoreK(K, M_t)
 
+# @cython.boundscheck(False)
+# @cython.wraparound(False)
+# cdef inline lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M):
+#     """
+#     Compute empirical and logistic loss from triplets S, 
+#     with feature vectors X on kernel K
+#     """
+#     cdef int num_t = M.shape[0]
+#     cdef int i
+#     cdef double emp_loss, log_loss, loss_ijk
+#     emp_loss = 0.  # 0/1 loss
+#     log_loss = 0.  # logistic loss
+
+#     for i in range(num_t):
+#         loss_ijk = tripletScoreK(K, M[i])
+#         if loss_ijk <= 0:
+#             emp_loss = emp_loss + 1.
+#         log_loss = log_loss + c_log(1 + c_exp(-loss_ijk))
+#     return emp_loss / num_t, log_loss / num_t
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M):
+cdef inline lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, S):
     """
     Compute empirical and logistic loss from triplets S, 
     with feature vectors X on kernel K
     """
-    cdef int num_t = M.shape[0]
+    cdef int num_t = len(S)
+    cdef np.ndarray[DTYPE_t, ndim=2] XKX = np.dot(X, np.dot(K, X.T))
     cdef int i
     cdef double emp_loss, log_loss, loss_ijk
     emp_loss = 0.  # 0/1 loss
     log_loss = 0.  # logistic loss
 
     for i in range(num_t):
-        loss_ijk = tripletScoreK(K, M[i])
+        loss_ijk = tripletScoreGradient(XKX, S[i])
         if loss_ijk <= 0:
             emp_loss = emp_loss + 1.
-        log_loss = log_loss + c_log(1 + c_exp(-loss_ijk))
+        log_loss = log_loss + c_log(1. + c_exp(-loss_ijk))
     return emp_loss / num_t, log_loss / num_t
-
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -91,8 +111,8 @@ cdef inline double tripletScoreGradient(np.ndarray[DTYPE_t, ndim=2] XKX, t):
     """
     Compute the score of a triplet = <K, M_t> = trace(M_t @ K)
     """
-    return XKX[t[2],t[2]] - XKX[t[1],t[1]]-2*(XKX[t[0],t[2]]- XKX[t[0],t[2]]) 
-    # return np.trace(np.dot(M_t, K))
+    return XKX[t[2],t[2]] - XKX[t[1],t[1]]-2*(XKX[t[0],t[2]]- XKX[t[0],t[1]]) 
+
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -120,7 +140,7 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] partialGradientK(np.ndarray[DTYPE_t, ndi
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=3] M, np.ndarray[DTYPE_t, ndim=2] X, S):
+cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, np.ndarray[DTYPE_t, ndim=3] M, S):
     """
     See partial gradient code for specifics. Computes full gradient for set of tripets S.
     The full gradient is equal to the sum of the partials. 
@@ -143,5 +163,6 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2]
     for i, t in enumerate(S):
         G += partialGradientK(K, M[i], XKX, t)
     return G / num_t
+
 
 
