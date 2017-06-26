@@ -1,19 +1,21 @@
 from __future__ import division
 import numpy as np
-import json, uuid, sys, io, time
+import json, uuid, sys, io
 from collections import defaultdict
 import multiprocessing as mp
 from Queue import Queue
 import cPickle as pickle
 from dask.distributed import Client
 
+
+
 import msgpack
 import msgpack_numpy as mn
 mn.patch()
 
+# client = Client('172.31.72.151:8786')
+# client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 client = Client()
-import matplotlib.pyplot as plt 
-#client.upload_file('cython/dist/utilsMetric-0.0.0-py2.7-linux-x86_64.egg')
 from scipy.linalg import orth
 from utilsMetric import computeKernel, triplets, norm_nuc, norm_L12
 
@@ -42,9 +44,6 @@ def sparse_case(n, d, p):
     return Ktrue, X
 
 def dense_case(n, d, p):
-    # U = orth(np.random.randn(p, d))
-    # Ktrue = np.dot(U, U.T)
-    # X = np.random.randn(n, p) * 1/d**.25
     U = orth(np.random.randn(p, d)) 
     Ktrue = np.dot(U, U.T)  * p/np.sqrt(d)
     X = np.random.randn(n, p) * 1./p**.5
@@ -69,11 +68,8 @@ def learn_metric(args):
     n, d, p, seed, step, start, acc = args
     id = np.random.randint(1000)
     np.random.seed(seed)
-    # Ktrue, X = dense_case(n, d, p)
-    Ktrue, X = row_sparse_case(n,d,p)
+    Ktrue, X = dense_case(n, d, p)
 
-
-    ts = time.time()
     # Compute the true risk
     total = 0
     R_star = 0
@@ -89,58 +85,46 @@ def learn_metric(args):
                     R_star += -pp * np.log(pp)
                     total += 1
     R_star = R_star / total
-    print('Time taken: ', time.time() - ts)
 
     # List of relative errors per iteration
     pred_err_list = []
     loss_list = []
     rec_err_list = []
     S = triplets(Ktrue, X, start, noise=True)
-    Ks = [(Ktrue, Ktrue)]
+    Ks = [Ktrue]
     it = 0
     pred_err_nuc = float('inf')
-    pred_err_L12 = float('inf')
 
     rec_err_nuc = float('inf')
-    rec_err_L12 = float('inf')
 
     print('id:{}, true Bayes error: {}, p:{}, d:{}, |S|:{}'.format(id, R_star, p, d, len(S)))
-    while max(pred_err_L12, pred_err_nuc) > acc:
+    print('norm_nuc', norm_nuc(Ktrue), 'expected norm', np.sqrt(d)*p)
+    while pred_err_nuc > acc:
         it += 1
-        if pred_err_nuc > acc:
-            Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d,
-                                                         norm_nuc(Ktrue),
-                                                         maxits=100,
-                                                         epsilon=1e-6,
-                                                         c1 = 1e-4,
-                                                         alpha=100.,
-                                                         regularization='norm_nuc',
-                                                         verbose=True)
-            pred_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
-            rec_err_nuc = np.linalg.norm(Khat_nuc-Ktrue,'fro')**2/np.linalg.norm(Ktrue,'fro')**2
-        if pred_err_L12 > acc:
-            Khat_L12, emp_loss, log_loss = computeKernel(X, S, d,
-                                                         norm_L12(Ktrue),
-                                                         maxits=100,
-                                                         epsilon=1e-6,
-                                                         c1 = 1e-4,
-                                                         alpha=4.,
-                                                         regularization='norm_L12',
-                                                         verbose=True)
-            pred_err_L12, loss_L12 = comparative_risk(R_star, Khat_L12, X, pTrue)
-            rec_err_L12 = np.linalg.norm(Khat_L12-Ktrue,'fro')**2/np.linalg.norm(Ktrue,'fro')**2
-        pred_err_list.append((pred_err_nuc, pred_err_L12))
-        rec_err_list.append((rec_err_nuc, rec_err_L12))
-        loss_list.append((loss_nuc, loss_L12))
-        print(("id:{}. Current prediction error: ({:.6f}, {:.6f}), Current recovery error: ({:.6f}, {:.6f}), log_losses: ({:.6f}, {:.6f}), "
+        Khat_nuc, emp_loss, log_loss = computeKernel(X, S, d,
+                                                     norm_nuc(Ktrue),
+                                                     maxits=800,
+                                                     epsilon=1e-6,
+                                                     c1 = 1e-4,
+                                                     alpha = 100,
+                                                     regularization='norm_nuc',
+                                                     verbose=False)
+        pred_err_nuc, loss_nuc = comparative_risk(R_star, Khat_nuc, X, pTrue)
+        rec_err_nuc = np.linalg.norm(Khat_nuc-Ktrue,'fro')**2/np.linalg.norm(Ktrue,'fro')**2
+
+        pred_err_list.append(pred_err_nuc)
+        rec_err_list.append(rec_err_nuc)
+        loss_list.append(loss_nuc)
+        print(("id:{}. Current prediction error: ({:.6f}), Current recovery error: ({:.6f}), log_losses: ({:.6f}), "
                "New test of {} samples. Dimension:{}. Sparsity:{}. Iteration: {}").format(id,
-                                                                                          pred_err_nuc, pred_err_L12,
-                                                                                          rec_err_nuc, rec_err_L12,
-                                                                                          loss_nuc, loss_L12,
+                                                                                          pred_err_nuc,
+                                                                                          rec_err_nuc,
+                                                                                          loss_nuc,
                                                                                           len(S)+step, p, d, it))
+        print('After learning: norm_nuc', norm_nuc(Khat_nuc))
         S.extend(triplets(Ktrue, X, step, noise=True))
-        Ks.append((Khat_nuc, Khat_L12))
-    result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'pred_err_list':pred_err_list,
+        Ks.append(Khat_nuc)
+    result = {'pulls': len(S) - step, 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'seed':seed, 'pred_err_list':pred_err_list,
               'rec_err_list': rec_err_list, 'loss_list': loss_list}
     return result
 
@@ -176,36 +160,30 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
-        d = [2]  # , 8, 10, 12, 14, 16, 18, 20]
-        step = [5000] * len(d)
-        start = [200000] * len(d)
-        p = [10] * len(d)
-        n = [12] * len(d)
-        acc = 100
+        d = [4]  
+        step = [1000] * len(d)
+        start = [14000] * len(d)
+        p = [100] * len(d)
+        n = [110] * len(d)
+        acc = .10
         avg = 1        # number of runs to average over
+
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
-        # pickle.dump(results, open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
-        Ks = results[0]['Ks']
-
-        plt.figure(1)
-        plt.subplot(121)
-        plt.imshow(Ks[0][0], cmap='plasma', interpolation=None)
-        plt.subplot(122)
-        plt.imshow(Ks[-1][1], cmap='plasma', interpolation=None)
-        plt.show()
-
+        pickle.dump(results, open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
+        
     else:
-        d = [3, 3, 3, 3, 3, 3, 3, 3, 3]  
-        step = [100, 100, 250, 250, 500, 500, 500, 500, 500]
-        start = [100, 250, 500, 750, 1000, 1500, 2000, 2500, 2500]
-        p = [10, 15, 20, 25, 30, 35, 40, 45, 50]
-        n = [60] * len(d)
-        acc = .1
+        d = [1]
+        step = [500]*len(d)
+        start = [4000]*len(d)
+        p = [100] * len(d)
+        n = [200] * len(d)
+        acc = .10
         avg = 20        # number of runs to average over
+        rand_id = str(uuid.uuid4())[:10]
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc,
-                         stream_name='dense-results-n{}-d{}-p{}-acc{}-avg{}.dat'.format(n, d, p, acc, avg))
+                         stream_name='d1_exp_3-results-n{}-d{}-p{}-acc{}-avg{}-id{}.dat'.format(n, d, p, acc, avg, rand_id))
         pickle.dump(results,
-                    open('dense-results-n{}-d{}-p{}-acc{}-avg{}.pkl'.format(n,d,p,acc,avg), 'wb'))
+                    open('d1_exp_3-results-n{}-d{}-p{}-acc{}-avg{}-id{}.pkl'.format(n,d,p,acc,avg, rand_id), 'wb'))
         

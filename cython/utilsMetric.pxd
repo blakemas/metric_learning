@@ -100,7 +100,7 @@ cdef inline lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, 
 
     for i in range(num_t):
         loss_ijk = tripletScoreGradient(XKX, S[i])
-        if loss_ijk <= 0:
+        if loss_ijk < 0:
             emp_loss = emp_loss + 1.
         log_loss = log_loss + c_log(1. + c_exp(-loss_ijk))
     return emp_loss / num_t, log_loss / num_t
@@ -112,7 +112,7 @@ cdef inline double tripletScoreGradient(np.ndarray[DTYPE_t, ndim=2] XKX, t):
     Compute the score of a triplet = <K, M_t> = trace(M_t @ K)
     """
     # i,j,k = t
-    return XKX[t[2],t[2]] - XKX[t[1],t[1]]-2*(XKX[t[0],t[2]]- XKX[t[0],t[1]]) 
+    return XKX[t[2],t[2]] - XKX[t[1],t[1]]-2.*(XKX[t[0],t[2]]- XKX[t[0],t[1]]) 
     # return np.trace(np.dot(M_t, K))
 
 @cython.boundscheck(False)
