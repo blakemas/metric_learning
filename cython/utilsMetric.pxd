@@ -137,7 +137,7 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] partialGradientK(np.ndarray[DTYPE_t, ndi
     """
     # cdef double score  = np.trace(np.dot(M_t, K))
     # tripletScoreK(K, M_t)
-    return -1. / (1. + c_exp(tripletScoreGradient(XKX, t))) * M_t.T
+    return -1. / (1. + c_exp(tripletScoreGradient(XKX, t))) * M_t
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -161,7 +161,7 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient(np.ndarray[DTYPE_t, ndim=2]
     cdef int num_t = M.shape[0]
     XKX = np.dot(X, np.dot(K, X.T))
     G = np.zeros((K.shape[0], K.shape[1]))
-    for i,t in enumerate(S):
+    for i, t in enumerate(S):
         G += partialGradientK(K, M[i], XKX, t)
     return G / num_t
 

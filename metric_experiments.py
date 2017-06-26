@@ -7,6 +7,8 @@ from Queue import Queue
 import cPickle as pickle
 from dask.distributed import Client
 
+import matplotlib.pyplot as plt
+
 import msgpack
 import msgpack_numpy as mn
 mn.patch()
@@ -138,6 +140,7 @@ def learn_metric(args):
                                                                                           rec_err_nuc, rec_err_L12,
                                                                                           loss_nuc, loss_L12,
                                                                                           len(S)+step, p, d, it))
+        print('After learning: norm_nuc', norm_nuc(Khat_nuc), 'norm_L12', norm_L12(Khat_L12))
         S.extend(triplets(Ktrue, X, step, noise=True))
         Ks.append((Khat_nuc, Khat_L12))
     result = {'pulls': len(S), 'Ks': Ks, 'n': n, 'd': d, 'p': p, 'start': start, 'step': step, 'X': X, 'pred_err_list':pred_err_list,
@@ -176,13 +179,27 @@ def driver(n, d, p, step, start, avg=3, acc=0.01, stream_name='stream'):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'test':
+<<<<<<< HEAD
         d = [2]  # , 8, 10, 12, 14, 16, 18, 20]
         step = [5000] * len(d)
         start = [200000] * len(d)
         p = [10] * len(d)
         n = [12] * len(d)
         acc = 100
+=======
+        d = [25]  # , 8, 10, 12, 14, 16, 18, 20]
+        step = [50000] * len(d)
+        start = [100000] * len(d)
+        p = [50] * len(d)
+        n = [50] * len(d)
+        acc = .01
+>>>>>>> origin/fastgradient
         avg = 1        # number of runs to average over
+        Ktrue, X = dense_case(n[0],d[0],p[0])
+        plt.imshow(Ktrue, interpolation='none')
+        plt.show()
+        print('norm_nuc', norm_nuc(Ktrue), 'norm_L12', norm_L12(Ktrue))
+
         results = driver(n, d, p, step,
                          start, avg=avg, acc=acc, stream_name='test-dump.dat')    
         # pickle.dump(results, open('test-dump.pkl'.format(n,d,p,acc,avg), 'wb'))
