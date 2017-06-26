@@ -137,6 +137,8 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             K = project_nucNorm(K_old - alpha * G, lam)
         elif regularization == 'norm_L12':
             K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
+        elif regularization == 'psd':
+            K = projectPSD(K_old - alpha * G)
         # print(time.time() - time_proj, ' projection seconds')
         # stopping criteria
         if dif < epsilon or normG < epsilon*(1.+log_loss_0) or alpha < epsilon:
@@ -156,6 +158,8 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
                 K = project_nucNorm(K_old - alpha * G, lam)
             elif regularization == 'norm_L12':
                 K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
+            elif regularization == 'psd':
+                K = projectPSD(K_old - alpha * G)
             emp_loss_k, log_loss_k = lossK(K, X, S)
             inner_t += 1
             if inner_t > 50:
