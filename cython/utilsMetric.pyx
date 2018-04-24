@@ -109,7 +109,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     cdef list log_loss, emp_loss
     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-    cdef int bounce = 10
+    cdef int bounce = 50
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
@@ -220,7 +220,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
 #     cdef list log_loss, emp_loss
 #     cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
 #     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-#     cdef int bounce = 10
+#     cdef int bounce = 50
 #     dif = np.finfo(float).max
 #     n = X.shape[0]
 #     p = X.shape[1]
@@ -313,7 +313,7 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
 #     cdef int p = X.shape[1]
 #     cdef int n = X.shape[0]
 #     cdef np.ndarray[DTYPE_t, ndim=2] K, G
-#     cdef int bounce = 10
+#     cdef int bounce = 50
 #     K = kernel(p, p, 1, False)
 #     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
     
