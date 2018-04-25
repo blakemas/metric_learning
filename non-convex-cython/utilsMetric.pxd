@@ -66,13 +66,13 @@ cdef inline double queryScoreK(np.ndarray[DTYPE_t, ndim=2]K, np.ndarray[DTYPE_t,
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef inline hinge_lossK(np.ndarray[DTYPE_t, ndim=2] K, np.ndarray[DTYPE_t, ndim=2] X, S):
+cdef inline hinge_lossU(np.ndarray[DTYPE_t, ndim=2] U, np.ndarray[DTYPE_t, ndim=2] X, S):
     """
     Compute empirical and logistic loss from triplets S, 
     with feature vectors X on kernel K
     """
     cdef int num_t = len(S)
-    cdef np.ndarray[DTYPE_t, ndim=2] XKX = np.dot(X, np.dot(K, X.T))
+    cdef np.ndarray[DTYPE_t, ndim=2] XKX = np.dot(X, np.dot(U.dot(U.T), X.T))
     cdef int i
     cdef double emp_loss, hinge_loss, loss_ijk
     emp_loss = 0.  # 0/1 loss
@@ -117,8 +117,12 @@ cdef inline np.ndarray[DTYPE_t, ndim=2] fullGradient_hinge(np.ndarray[DTYPE_t, n
     G = np.zeros((U.shape[0], U.shape[1]))
     for i, t in enumerate(S):
         if tripletScoreGradient(XKX, t) < 1:       # when hinge function not 0 
-            G += -2*M_t.dot(U)
+            G += -2*M[i].dot(U)
     return G / num_t
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef inline np.ndarray[DTYPE_t, ndim=2] prox_frobenius(np.ndarray[DTYPE_t, ndim=2] U, double lam):
+    return U/(1+2.*lam)
 
 

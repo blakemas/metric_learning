@@ -70,23 +70,23 @@ def norm_nuc(A):
 def getScore(K, M_t):
     return tripletScoreK(K, M_t)
 
-def getLoss(K, X, S):
-    return lossK(K, X, S)
+def getLoss(U, X, S):
+    return hinge_lossU(U, X, S)
 
 
-def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
-                  regularization='norm_L12', 
+def computeMap(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
+                  regularization='fro', 
                   double c1=.1, 
                   double rho=0.7, 
                   int maxits=100,
                   alpha=1, 
                   double epsilon=1e-5, 
                   verbose=False,
-                  Kstart = None):
+                  Ustart = None):
     """
-    Compute a sparse, symmetric PSD kernel from triplet observations S feature vectors X,
+    Compute a the root of a low rank PSD kernel from triplet observations S feature vectors X,
     using projected gradient descent. Specifically, we wish to solve the following optimation:
-    K = \arg\min_{K PSD} \sum_{t \in S} \log(1+exp(-score_t)) + \lambda*||K||_1
+    K = \arg\min_{K PSD} \sum_{t \in S} \max(1-score_t),1) + \lambda*||U||_F^2
     where the 'score' of a triplet t = ||x_i - x_k||_K^2 - ||x_i - x_j||_k^2, the distance wrt the kernel K.
     This is solved via projected gradient descent.
 
@@ -102,87 +102,74 @@ def computeKernel(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     Returns: 
     ndarray[float] (pxp)        K: estimated sparse, low rank Kernel matrix
     list[float]          emp_loss: empirical loss at each iteration
-    list[float]          log_loss: logistic loss at each iteration
+    list[float]          hinge_loss: hinge loss at each iteration
     """
     cdef int n, p, t, inner_t
-    cdef double dif, emp_loss_0, log_loss_0, emp_loss_k, log_loss_k, normG
-    cdef list log_loss, emp_loss
-    cdef np.ndarray[DTYPE_t, ndim=2] K, K_old, G
+    cdef double dif, emp_loss_0, hinge_loss_0, emp_loss_k, hinge_loss_k, normG
+    cdef list hinge_loss, emp_loss
+    cdef np.ndarray[DTYPE_t, ndim=2] G, U, U_old
     cdef np.ndarray[DTYPE_t, ndim=3] M = M_set(S, X)
-    cdef int bounce = 50
     dif = np.finfo(float).max
     n = X.shape[0]
     p = X.shape[1]
-    if Kstart is None:
-        K = kernel(p, p, 1, False)
+    if Ustart is None:
+        U = np.random.randn(p,d)
     else:
-        K = Kstart
+        U = Ustart
     t = 0
     # alpha = 4.
-    log_loss = []
+    hinge_loss = []
     emp_loss = []
     grad_time = 0
 
     while t < maxits:
-        # ts = time.time()
-        K_old = K
-        # time_loss = time.time()
-        emp_loss_0, log_loss_0 = lossK(K_old, X, S)
-        # print(time.time() - time_loss, ' loss seconds')
+        U_old = U
+        emp_loss_0, hinge_loss_0 = hinge_lossU(U_old, X, S)
+        
         t += 1
-        G = fullGradient(K, X, M, S)
+        G = fullGradient_hinge(U, X, M, S)
         normG = np.linalg.norm(G, ord='fro')                               # compute gradient
-        # time_proj = time.time()
-        if regularization == 'norm_nuc':
-            K = project_nucNorm(K_old - alpha * G, lam)
-        elif regularization == 'norm_L12':
-            K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
-        elif regularization == 'psd':
-            K = projectPSD(K_old - alpha * G)
-        # print(time.time() - time_proj, ' projection seconds')
+
+        if regularization == 'fro':
+            U = prox_frobenius(U_old - alpha * G, lam)
+        elif regularization != None:
+            raise Exception('Only Frobenius regularization currently supported')
+
         # stopping criteria
-        if dif < epsilon or normG < epsilon*(1.+log_loss_0) or alpha < epsilon:
-            log_loss.append(log_loss_0)
+        if dif < epsilon or normG < epsilon*(1.+hinge_loss_0) or alpha < epsilon:
+            hinge_loss.append(hinge_loss_0)
             emp_loss.append(emp_loss_0)
             if verbose:
                 print("Exiting at iterate %d because stopping condition satisfied" % t)
             break
 
         # backtracking line search
-        emp_loss_k, log_loss_k = lossK(K, X, S)
+        emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
         inner_t = 0         # number of steps back
-        # time_back = time.time()
-        while log_loss_k > log_loss_0 - c1 * alpha * normG**2:
+        while hinge_loss_k > hinge_loss_0 - c1 * alpha * normG**2:
             alpha = alpha * rho
-            if regularization == 'norm_nuc':
-                K = project_nucNorm(K_old - alpha * G, lam)
-            elif regularization == 'norm_L12':
-                K = alternating_projection_dykstra(K_old - alpha * G, lam, bounce)
-            elif regularization == 'psd':
-                K = projectPSD(K_old - alpha * G)
-            emp_loss_k, log_loss_k = lossK(K, X, S)
+            U = U_old - alpha * G
+            if regularization == 'fro':
+                U = prox_frobenius(U, lam)
+            emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
             inner_t += 1
             if inner_t > 50:
                 break
         alpha = 1.1*alpha
-        # print(time.time() - time_back, ' backtrack seconds')
-        dif = np.abs(log_loss_0 - log_loss_k)
+
+        dif = np.abs(hinge_loss_0 - hinge_loss_k)
         if verbose:
             print({'iter': t,
                    'emp_loss': emp_loss_k,
-                   'log_loss': log_loss_k,
+                   'hinge_loss': hinge_loss_k,
                    'dif': dif,
                    'normG': normG,
                    'back_steps': inner_t,
                    'alpha': alpha})
-        log_loss.append(log_loss_k)
+        hinge_loss.append(hinge_loss_k)
         emp_loss.append(emp_loss_k)
-    #     dur = time.time() - ts
-    #     print(dur, ' seconds total')
-    #     grad_time += dur
 
-    # print('average fast gradient time: ', grad_time/t)
-    return K, emp_loss, log_loss
+    return U, emp_loss, hinge_loss
 
 def euclidean_proj_l1ball(v, s=1):
     assert s > 0, "Radius s must be strictly positive (%d <= 0)" % s
