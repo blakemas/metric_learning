@@ -82,7 +82,7 @@ cdef inline hinge_lossU(np.ndarray[DTYPE_t, ndim=2] U, np.ndarray[DTYPE_t, ndim=
         loss_ijk = tripletScoreGradient(XKX, S[i])
         if loss_ijk < 0:
             emp_loss = emp_loss + 1.
-        hinge_loss = hinge_loss + max(1. - loss_ijk)
+        hinge_loss = hinge_loss + np.max([1. - loss_ijk, 0])
     return emp_loss / num_t, hinge_loss / num_t
 
 @cython.boundscheck(False)

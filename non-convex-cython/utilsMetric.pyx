@@ -117,7 +117,6 @@ def computeMap(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
     else:
         U = Ustart
     t = 0
-    # alpha = 4.
     hinge_loss = []
     emp_loss = []
     grad_time = 0
@@ -142,20 +141,20 @@ def computeMap(np.ndarray[DTYPE_t, ndim=2] X, list S, int d, double lam,
             if verbose:
                 print("Exiting at iterate %d because stopping condition satisfied" % t)
             break
-
+        # emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
         # backtracking line search
         emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
-        inner_t = 0         # number of steps back
-        while hinge_loss_k > hinge_loss_0 - c1 * alpha * normG**2:
-            alpha = alpha * rho
-            U = U_old - alpha * G
-            if regularization == 'fro':
-                U = prox_frobenius(U, lam)
-            emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
-            inner_t += 1
-            if inner_t > 50:
-                break
-        alpha = 1.1*alpha
+        # inner_t = 0         # number of steps back
+        # while hinge_loss_k > hinge_loss_0 - c1 * alpha * normG**2:
+        #     alpha = alpha * rho
+        #     U = U_old - alpha * G
+        #     if regularization == 'fro':
+        #         U = prox_frobenius(U, lam)
+        #     emp_loss_k, hinge_loss_k = hinge_lossU(U, X, S)
+        #     inner_t += 1
+        #     if inner_t > 50:
+        #         break
+        # alpha = 1.1*alpha
 
         dif = np.abs(hinge_loss_0 - hinge_loss_k)
         if verbose:
